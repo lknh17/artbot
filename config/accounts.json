@@ -1,0 +1,46 @@
+{
+  "accounts": [
+    {
+      "credentials": {
+        "appid": "wxd172acd1886d9ce5",
+        "secret": "8bd756982d1e1c7ece98c09e8694087a"
+      },
+      "enabled": true,
+      "id": "mp_chaguan",
+      "name": "公众号-净心茶社",
+      "platform": "wechat_mp",
+      "profile": {
+        "audience": "中年人，喜欢思考生活的年轻人，职场人",
+        "content": {
+          "section_count": 6,
+          "word_count_max": 1500,
+          "word_count_min": 900
+        },
+        "domain": "社会人生感悟",
+        "image": {
+          "cover_prompt": "简约中式动画风格，扁平插画，柔和色彩，干净线条",
+          "inline_count": 2,
+          "inline_prompt": "简约中式动画风格，扁平插画，柔和色彩，干净线条"
+        },
+        "layout_style_id": "snow-cold",
+        "persona": "在浮躁的人世间，安放一颗清明的心。这里分享人生哲理、社会感悟与职场心得，愿读者能净心静气，笑看人生百态。",
+        "title_config": {
+          "extra": "",
+          "hotspot_ratio": "self_dominant",
+          "len_max": 18,
+          "len_min": 10,
+          "style_desc": "禅意克制，让读者自己品味，想点击（好奇或者击中内心）"
+        },
+        "tone": "禅意克制，文艺留白",
+        "tone_keywords": "",
+        "writing_style": {
+          "audience": "中年人，喜欢思考生活的年轻人，职场人",
+          "domain": "社会人生感悟",
+          "mimic_style": "净心茶社禅意风",
+          "persona": "在浮躁的人世间，安放一颗清明的心。这里分享人生哲理、社会感悟与职场心得，愿读者能净心静气，笑看人生百态。\n",
+          "tone": "真诚分享"
+        }
+      }
+    }
+  ]
+}

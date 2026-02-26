@@ -1,0 +1,1765 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>artbot 控制台</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+header { text-align: center; padding: 40px 0 30px; }
+header h1 { font-size: 28px; background: linear-gradient(135deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+header p { color: #94a3b8; margin-top: 8px; font-size: 14px; }
+.tabs { display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 1px solid #1e293b; padding-bottom: 12px; flex-wrap: wrap; }
+.tab { padding: 8px 20px; border-radius: 8px 8px 0 0; cursor: pointer; color: #94a3b8; font-size: 14px; transition: all 0.2s; }
+.tab.active { background: #1e293b; color: #60a5fa; }
+.tab:hover { color: #e2e8f0; }
+.panel { display: none; }
+.panel.active { display: block; }
+.card { background: #1e293b; border-radius: 16px; padding: 24px; margin-bottom: 20px; border: 1px solid #334155; }
+.card h3 { font-size: 16px; color: #60a5fa; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.card h3::before { content: ''; width: 4px; height: 16px; background: #60a5fa; border-radius: 2px; }
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; font-size: 13px; color: #94a3b8; margin-bottom: 6px; }
+.form-group .hint { font-size: 11px; color: #64748b; margin-top: 4px; }
+.form-group input, .form-group textarea, .form-group select {
+    width: 100%; padding: 10px 14px; background: #0f172a; border: 1px solid #334155;
+    border-radius: 8px; color: #e2e8f0; font-size: 14px; outline: none; transition: border 0.2s;
+}
+.form-group input:focus, .form-group textarea:focus { border-color: #60a5fa; }
+.form-group textarea { resize: vertical; min-height: 80px; }
+.btn { padding: 10px 24px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.2s; }
+.btn-primary { background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; }
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(59,130,246,0.4); }
+.btn-secondary { background: #334155; color: #e2e8f0; }
+.btn-secondary:hover { background: #475569; }
+.btn-sm { padding: 6px 14px; font-size: 12px; }
+.btn-danger { background: #991b1b; color: #fca5a5; }
+.themes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+.theme-card { padding: 12px 8px; border-radius: 12px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; text-align: center; }
+.theme-card.selected { border-color: #60a5fa; box-shadow: 0 0 20px rgba(96,165,250,0.2); }
+.theme-card:hover { transform: translateY(-2px); }
+.theme-name { font-size: 11px; font-weight: 600; margin-top: 6px; }
+.theme-dot { width: 28px; height: 28px; border-radius: 50%; margin: 0 auto; }
+.theme-layout-tag { font-size: 9px; color: #94a3b8; margin-top: 2px; }
+.hot-list { list-style: none; }
+.hot-item { padding: 10px 0; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center; }
+.hot-item:last-child { border-bottom: none; }
+.hot-title { font-size: 14px; flex: 1; cursor: pointer; }
+.hot-title:hover { color: #60a5fa; }
+.draft-item { padding: 12px 16px; background: #0f172a; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+.status-bar { padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+.status-idle { background: #1e293b; color: #94a3b8; }
+.status-pending { background: #1e3a5f; color: #60a5fa; }
+.status-done { background: #1a3a2a; color: #4ade80; }
+.row { display: flex; gap: 20px; }
+.col-8 { flex: 2; }
+.col-4 { flex: 1; }
+@media (max-width: 768px) { .row { flex-direction: column; } .themes-grid { grid-template-columns: repeat(2, 1fr); } }
+.toast { position: fixed; top: 20px; right: 20px; padding: 12px 24px; border-radius: 8px; background: #1e3a5f; color: #60a5fa; font-size: 14px; z-index: 100; display: none; }
+.preview-frame { border: 1px solid #334155; border-radius: 12px; overflow: hidden; background: #fff; min-height: 400px; }
+.preview-frame iframe { width: 100%; min-height: 500px; border: none; }
+.chip { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 12px; margin: 2px 4px; cursor: pointer; }
+.chip-on { background: #1e3a5f; color: #60a5fa; }
+.chip-off { background: #1e293b; color: #64748b; }
+.chip-off:hover { color: #94a3b8; }
+.stat-card { text-align: center; padding: 20px; }
+.stat-num { font-size: 28px; font-weight: 700; color: #60a5fa; }
+.stat-label { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+.checkbox-row { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+.checkbox-row input[type=checkbox] { width: auto; }
+.checkbox-row label { color: #94a3b8; font-size: 13px; margin: 0; }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>artbot 控制台</h1>
+        <p>多平台 · 多账号 · 生成/排版/发布/统计 一体化</p>
+        <p style="margin-top:6px; font-size:12px; color:#64748b;">UI build: 2026-02-25 15:20</p>
+    </header>
+
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('jobs')">🧩 Jobs</div>
+        <div class="tab" onclick="switchTab('accounts')">👤 Accounts</div>
+        <div class="tab" onclick="switchTab('profiles')">🎭 Profiles</div>
+        <div class="tab" onclick="switchTab('layouts')">🎨 Layouts</div>
+        <div class="tab" onclick="switchTab('autotopic')">🎯 自动选题</div>
+        <div class="tab" onclick="switchTab('hot')">🔥 Trend</div>
+        <div class="tab" onclick="switchTab('stats')">📊 Stats</div>
+        <div class="tab" onclick="switchTab('settings')">⚙️ Settings</div>
+    </div>
+
+    <!-- ==================== Jobs ==================== -->
+    <div id="panel-jobs" class="panel active">
+        <div id="status-bar" class="status-bar status-idle">系统就绪</div>
+        <div class="row">
+            <div class="col-8">
+                <div class="card">
+                    <h3>手动文章生成</h3>
+                    <div class="form-group">
+                        <label>选择账号</label>
+                        <select id="job_account" onchange="onJobAccountChange()"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>关键词 / 主题 / 热点描述</label>
+                        <textarea id="keyword" placeholder="越具体越好：事件+观点+受众+语气"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>插图数量</label>
+                        <select id="num_images">
+                            <option value="0">无插图</option>
+                            <option value="1">1 张</option>
+                            <option value="2" selected>2 张</option>
+                            <option value="3">3 张</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>额外要求（可选）</label>
+                        <textarea id="extra_prompt" rows="3" placeholder="例如：幽默、1000字、强观点、结尾给清单"></textarea>
+                    </div>
+                    <div class="checkbox-row">
+                        <input type="checkbox" id="push_to_draft">
+                        <label for="push_to_draft">生成完成后自动推送到公众号草稿箱</label>
+                    </div>
+                    <button class="btn btn-primary" onclick="generateArticle()">🚀 开始生成</button>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="card">
+                    <h3>排版主题</h3>
+                    <div id="themes-grid" class="themes-grid"></div>
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <h3>最近生成的文章</h3>
+            <div style="color:#64748b; font-size:12px; margin:-6px 0 10px 0;">展示标题 / 更新时间 / 文件大小。预览旁提供 Debug 查看最终 prompts 与模板信息。</div>
+            <div id="draft-list"></div>
+        </div>
+
+        <!-- Draft Debug Modal -->
+        <div id="draft-debug-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:200; padding:24px;">
+            <div style="max-width:980px; margin:0 auto; background:#0b1220; border:1px solid #334155; border-radius:14px; overflow:hidden;">
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; background:#111c33; border-bottom:1px solid #334155;">
+                    <div style="font-weight:700; color:#e2e8f0;">🧪 Draft Debug</div>
+                    <button class="btn btn-secondary btn-sm" onclick="closeDraftDebug()">关闭</button>
+                </div>
+                <div id="draft-debug-body" style="padding:16px; max-height:70vh; overflow:auto;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== Accounts ==================== -->
+    <div id="panel-accounts" class="panel">
+        <div class="card">
+            <h3>账号管理</h3>
+            <p style="color:#94a3b8; font-size:13px; margin-bottom:16px;">每个账号对应一个平台的发布渠道。公众号的 AppID / Secret 在此配置。</p>
+            <div style="display:flex; gap:10px; margin-bottom:16px;">
+                <button class="btn btn-primary btn-sm" onclick="addAccount()">+ 新增账号</button>
+                <button class="btn btn-secondary btn-sm" onclick="loadAccounts()">刷新</button>
+                <button class="btn btn-primary btn-sm" onclick="saveAccounts()">💾 保存</button>
+            </div>
+            <div id="accounts-list"></div>
+        </div>
+    </div>
+
+    <!-- ==================== Profiles ==================== -->
+    <div id="panel-profiles" class="panel">
+        <div class="card">
+            <h3>账号个性化 (Profiles)</h3>
+            <p style="color:#94a3b8; font-size:13px; margin-bottom:12px;">为每个账号配置写作风格、排版主题、图片生成要求等。所有字段都会影响最终生成效果。</p>
+            <div class="form-group">
+                <label>选择账号</label>
+                <select id="profile_account" onchange="renderProfileEditor()"></select>
+            </div>
+            <div id="profile-editor" style="margin-top:12px;"></div>
+            <div style="margin-top:16px;">
+                <button class="btn btn-primary" onclick="saveProfile()">💾 保存 Profile</button>
+            </div>
+        </div>
+        <!-- Debug prompt preview -->
+        <details id="profile-debug" class="card" style="cursor:pointer;" ontoggle="renderProfileEditor()">
+            <summary style="color:#f59e0b; font-weight:600; font-size:14px;">🔧 Debug: 查看最终 Prompt 预览</summary>
+            <p style="color:#64748b; font-size:12px; margin:8px 0;">以下展示基于当前 Profile 配置生成的 3 个 prompt。<code style="color:#f59e0b;">{占位符}</code> 表示运行时由接口动态传入的信息。</p>
+            <div id="debug-prompts" style="margin-top:12px;"></div>
+        </details>
+    </div>
+
+    <!-- ==================== Layouts ==================== -->
+    <div id="panel-layouts" class="panel">
+        <div class="row">
+            <div class="col-4">
+                <div class="card">
+                    <h3>选择主题</h3>
+                    <div class="form-group">
+                        <label>预览平台</label>
+                        <select id="layout-platform" onchange="loadLayoutThemes()">
+                            <option value="wechat">公众号</option>
+                            <option value="xhs">小红书</option>
+                        </select>
+                    </div>
+                    <div id="layout-themes" class="themes-grid"></div>
+                </div>
+            </div>
+            <div class="col-8">
+                <div class="card">
+                    <h3>预览效果</h3>
+                    <div id="layout-preview" class="preview-frame">
+                        <div style="padding:40px; text-align:center; color:#94a3b8;">← 选择一个主题查看预览</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 自动选题 ==================== -->
+    <div id="panel-autotopic" class="panel">
+        <div class="card">
+            <h3>自动选题配置</h3>
+            <p style="color:#94a3b8; font-size:13px; margin-bottom:16px;">配置定时自动选题 → 生成文章的流程。基于热点数据 + 搜索引擎补充素材。</p>
+
+            <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:12px;">
+                <div class="form-group" style="margin:0; min-width:220px;">
+                    <label>启用自动选题</label>
+                    <select id="at_enabled">
+                        <option value="false">关闭</option>
+                        <option value="true">开启</option>
+                    </select>
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="runAutotopicOnce()">▶ 手动推送一次</button>
+            <div id="autotopic-result"></div>
+                <div class="hint" style="margin:0;">用于调试/立刻跑一轮：会立即在飞书群推送一条“今日选题候选”消息。</div>
+            </div>
+
+            <div class="form-group">
+                <label>运行模式</label>
+                <select id="at_mode">
+                    <option value="auto">自动模式（直接生成完整内容）</option>
+                    <option value="manual">人工确认模式（先生成标题候选，人工选择后再生成）</option>
+                </select>
+                <div class="hint">自动模式：热点→标题→内容一步到位。人工确认模式：先出标题列表，你选定后再生成完整内容。</div>
+            </div>
+
+            <div class="row">
+                <div class="col-3">
+                    <div class="form-group">
+                        <label>自动模式 - 生成文章数</label>
+                        <input type="number" id="at_auto_count" min="1" max="10" value="3">
+                    </div>
+                </div>
+                <div class="col-3">
+                    <div class="form-group">
+                        <label>🔥 热点类标题数</label>
+                        <input type="number" id="at_hot_title_count" min="0" max="20" value="3">
+                        <div class="hint">每个账号推荐几个热点类标题</div>
+                    </div>
+                </div>
+                <div class="col-3">
+                    <div class="form-group">
+                        <label>✨ 自主选题标题数</label>
+                        <input type="number" id="at_self_title_count" min="0" max="10" value="3">
+                        <div class="hint">AI 根据账号定位自主生成</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>定时调度 (cron 表达式)</label>
+                <input type="text" id="at_schedule" value="0 9 * * *" placeholder="0 9 * * *">
+                <div class="hint">示例：0 9 * * * = 每天9点，0 9,18 * * * = 每天9点和18点</div>
+            </div>
+
+            <div class="form-group">
+                <label>时区</label>
+                <input type="text" id="at_timezone" value="Asia/Shanghai">
+            </div>
+
+            <div class="form-group">
+                <label>热点数据源</label>
+                <div id="at_sources"></div>
+                <div class="hint">选择要抓取的热点平台</div>
+            </div>
+
+            <div class="form-group">
+                <label>搜索引擎补充</label>
+                <select id="at_search_engine">
+                    <option value="brave">Brave Search</option>
+                    <option value="google">Google (需配置)</option>
+                    <option value="none">不使用</option>
+                </select>
+                <div class="hint">用搜索引擎补充热点的详细内容和背景信息</div>
+            </div>
+
+            <div class="form-group">
+                <label>目标平台</label>
+                <div id="at_platforms"></div>
+                <div class="hint">自动选题后生成哪些平台的内容</div>
+            </div>
+
+            <div class="form-group">
+                <label>关键词过滤（只选包含这些词的热点，留空=不限）</label>
+                <input type="text" id="at_filter" placeholder="AI,科技,编程（逗号分隔）">
+            </div>
+
+            <div class="form-group">
+                <label>排除关键词（跳过包含这些词的热点）</label>
+                <input type="text" id="at_exclude" placeholder="娱乐,八卦（逗号分隔）">
+            </div>
+
+            <button class="btn btn-primary" onclick="saveAutotopic()">💾 保存自动选题配置</button>
+        </div>
+
+        <!-- Debug: 自动选题 Prompt 预览 -->
+        <details class="card" style="cursor:pointer;">
+            <summary style="color:#f59e0b; font-weight:600; font-size:14px;">🔧 Debug: 自动选题 Prompt 预览</summary>
+            <p style="color:#64748b; font-size:12px; margin:8px 0;">展示自动选题流程中各环节的 prompt。<code style="color:#f59e0b;">{占位符}</code> 为运行时动态数据。</p>
+            <div class="form-group" style="margin-top:12px;">
+                <label>选择账号查看其 prompt</label>
+                <select id="at_debug_account" onchange="updateAutotopicDebug()"></select>
+            </div>
+            <div id="at-debug-prompts"></div>
+        </details>
+    </div>
+
+    <!-- ==================== Trend ==================== -->
+    <div id="panel-hot" class="panel">
+        <div style="display:flex; gap:10px; margin-bottom:16px; align-items:center; flex-wrap:wrap;">
+            <input type="text" id="hot-search" placeholder="搜索热点关键词..." style="flex:1; min-width:200px; padding:10px 14px; background:#0f172a; border:1px solid #334155; border-radius:8px; color:#e2e8f0; font-size:14px; outline:none;">
+            <button class="btn btn-primary btn-sm" onclick="loadHot()">搜索</button>
+            <button class="btn btn-secondary btn-sm" onclick="hotNav(-1)">← 前一天</button>
+            <span id="hot-date" style="color:#60a5fa; font-size:14px; font-weight:600;"></span>
+            <button class="btn btn-secondary btn-sm" onclick="hotNav(1)">后一天 →</button>
+            <select id="hot-date-select" onchange="hotCurrentDate=this.value;loadHot()" style="padding:6px 10px; background:#0f172a; border:1px solid #334155; border-radius:8px; color:#e2e8f0; font-size:13px;"></select>
+        </div>
+        <div id="hot-content"><div class="card"><div style="padding:20px; text-align:center; color:#64748b;">加载中...</div></div></div>
+    </div>
+
+    <!-- ==================== Stats ==================== -->
+    <div id="panel-stats" class="panel">
+        <div class="card">
+            <h3>已发布文章统计</h3>
+            <p style="color:#94a3b8; font-size:13px; margin-bottom:12px;">展示公众号已发布的文章数据。</p>
+            <div class="form-group">
+                <label>选择公众号账号</label>
+                <select id="stats_account" onchange="loadStats()">
+                    <option value="">（使用全局配置）</option>
+                </select>
+            </div>
+            <div id="stats-summary" style="display:flex; gap:16px; margin-bottom:20px;"></div>
+            <div id="stats-list"></div>
+        </div>
+    </div>
+
+    <!-- ==================== Settings (全局) ==================== -->
+    <div id="panel-settings" class="panel">
+        <div class="card">
+            <h3>全局设置</h3>
+            <p style="color:#94a3b8; font-size:13px; margin-bottom:16px;">混元图片生成等全局配置。公众号凭证已移到 Accounts 页面随账号配置。</p>
+            <div class="row">
+                <div class="col-8">
+                    <div class="card" style="background:#0f172a;">
+                        <h3>腾讯混元配置</h3>
+                        <div class="form-group"><label>Secret ID</label><input type="text" id="cfg_hunyuan_secret_id" placeholder="AKID..."></div>
+                        <div class="form-group"><label>Secret Key</label><input type="password" id="cfg_hunyuan_secret_key" placeholder="****"></div>
+                        <div class="form-group"><label>Region</label><input type="text" id="cfg_hunyuan_region" placeholder="ap-guangzhou"></div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <button class="btn btn-primary" onclick="saveConfig()" style="width:100%;">💾 保存配置</button>
+                    <div style="color:#64748b; font-size:12px; margin-top:10px; line-height:1.6;">
+                        图片生成相关配置已迁移到 <strong style="color:#94a3b8;">Profiles</strong>（按账号管理）。
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 写作风格编辑器 -->
+        <div class="card">
+            <h3>✍️ 写作风格模板</h3>
+            <p style="color:#94a3b8; font-size:13px; margin-bottom:16px;">
+                管理可复用的写作风格。每个风格包含若干篇参考文章，生成时 AI 会参考其<strong>语言风格和文章结构</strong>（不抄内容）。
+                在 Profiles 页面为账号选择风格即可启用。
+            </p>
+            <div id="styles-list"></div>
+            <button class="btn btn-secondary btn-sm" onclick="addWritingStyle()" style="margin-top:12px;">＋ 新增风格</button>
+        </div>
+
+        <!-- 配置备份与恢复 -->
+        <div class="card">
+            <h3>💾 配置备份与恢复</h3>
+            <p style="color:#94a3b8; font-size:13px; margin-bottom:16px;">
+                一键导出全部系统配置（全局设置 + 账号 + 写作风格 + 自动选题），或从之前导出的文件恢复。
+            </p>
+            <div style="display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;">
+                <div style="flex:1; min-width:200px;">
+                    <button class="btn btn-primary" onclick="exportConfig()" style="width:100%;">
+                        📦 一键导出配置
+                    </button>
+                    <div style="color:#64748b; font-size:12px; margin-top:8px;">
+                        导出为 JSON 文件，包含所有配置项
+                    </div>
+                </div>
+                <div style="flex:1; min-width:200px;">
+                    <label class="btn btn-secondary" style="width:100%; text-align:center; cursor:pointer; display:block;">
+                        📂 上传配置恢复
+                        <input type="file" id="import-file" accept=".json" onchange="importConfig(this)" style="display:none;">
+                    </label>
+                    <div style="color:#64748b; font-size:12px; margin-top:8px;">
+                        上传之前导出的 JSON 文件，恢复全部配置（旧配置自动备份）
+                    </div>
+                </div>
+            </div>
+            <div id="backup-result" style="margin-top:12px;"></div>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+const API = '/art/api';
+let selectedTheme = 'snow-cold';
+let layoutSelectedTheme = 'snow-cold';
+
+let wechatThemesCache = null;
+let xhsThemesCache = null;
+
+async function getWechatThemes() {
+  if (wechatThemesCache) return wechatThemesCache;
+  const res = await fetch(API + '/themes?platform=wechat_mp');
+  wechatThemesCache = await res.json();
+  return wechatThemesCache;
+}
+
+async function getXhsThemes() {
+  if (xhsThemesCache) return xhsThemesCache;
+  const res = await fetch(API + '/themes?platform=xhs');
+  xhsThemesCache = await res.json();
+  return xhsThemesCache;
+}
+
+function getPlatformOfAccount(accountId) {
+  const acc = accountsCache.find(a=>a.id===accountId);
+  return acc?.platform || 'wechat_mp';
+}
+
+async function renderJobThemeGrid() {
+  const accId = document.getElementById('job_account')?.value || '';
+  const platform = getPlatformOfAccount(accId);
+
+  if (platform === 'xhs') {
+    const themes = await getXhsThemes();
+    renderThemeGrid('themes-grid', themes, selectedTheme, k => { selectedTheme = k; renderJobThemeGrid(); });
+    return;
+  }
+
+  const themes = await getWechatThemes();
+  renderThemeGrid('themes-grid', themes, selectedTheme, k => { selectedTheme = k; renderJobThemeGrid(); });
+}
+
+function onJobAccountChange(){
+  // Reset theme when switching platforms (avoid invalid selection)
+  const accId = document.getElementById('job_account')?.value || '';
+  const platform = getPlatformOfAccount(accId);
+  if (platform === 'xhs') {
+    // async load xhs themes then select first
+    getXhsThemes().then(t=>{
+      selectedTheme = Object.keys(t||{})[0] || selectedTheme;
+      renderJobThemeGrid();
+    });
+    return;
+  }
+  selectedTheme = 'snow-cold';
+  renderJobThemeGrid();
+}
+
+const LAYOUT_LABELS = {card:'卡片',magazine:'杂志',minimal:'极简',gradient:'渐变',xhs:'小红书'};
+
+function switchTab(name) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    event.target.classList.add('active');
+    document.getElementById('panel-' + name).classList.add('active');
+    if (name === 'hot') loadHot();
+    if (name === 'settings') { loadConfig(); loadWritingStyles(); }
+    if (name === 'accounts') loadAccounts();
+    if (name === 'profiles') { loadWritingStyles().then(() => loadAccounts(true)); }
+    if (name === 'layouts') loadLayoutThemes();
+    if (name === 'jobs') loadDrafts();
+    if (name === 'autotopic') { loadAutotopic(); refreshAutotopicDebugAccounts(); }
+    if (name === 'stats') { loadAccountsForStats(); loadStats(); }
+}
+
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.display = 'block';
+    setTimeout(() => t.style.display = 'none', 3000);
+}
+
+// ==================== Themes ====================
+function renderThemeGrid(containerId, themes, selected, onSelect) {
+    const grid = document.getElementById(containerId);
+    if (!grid) return;
+    grid.innerHTML = '';
+    for (const [key, val] of Object.entries(themes)) {
+        const layout = val.layout || 'card';
+        const div = document.createElement('div');
+        div.className = 'theme-card' + (key === selected ? ' selected' : '');
+        div.style.background = val.bg;
+        div.onclick = () => onSelect(key);
+        div.innerHTML = `<div class="theme-dot" style="background:${val.primary}"></div><div class="theme-name" style="color:${val.primary}">${val.name}</div><div class="theme-layout-tag">${LAYOUT_LABELS[layout]||layout}</div>`;
+        grid.appendChild(div);
+    }
+}
+async function loadThemes() {
+    // Jobs theme grid is platform-aware; do not load everything into one mixed list
+    await renderJobThemeGrid();
+}
+
+// ==================== Generate ====================
+async function generateArticle() {
+    const keyword = document.getElementById('keyword').value.trim();
+    if (!keyword) { showToast('请输入关键词'); return; }
+    const res = await fetch(API + '/generate', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            keyword, theme: selectedTheme,
+            num_images: parseInt(document.getElementById('num_images').value),
+            extra_prompt: document.getElementById('extra_prompt').value.trim(),
+            account_id: document.getElementById('job_account')?.value || '',
+            push_to_draft: document.getElementById('push_to_draft')?.checked || false
+        })
+    });
+    const data = await res.json();
+    const bar = document.getElementById('status-bar');
+    bar.className = 'status-bar status-pending';
+    bar.textContent = '⏳ ' + data.message;
+    showToast('任务已提交！');
+    pollStatus();
+}
+
+async function pollStatus() {
+    const res = await fetch(API + '/status');
+    const data = await res.json();
+    const bar = document.getElementById('status-bar');
+    if (data.status === 'done') {
+        bar.className = 'status-bar status-done';
+        bar.textContent = '✅ 文章已生成！' + (data.title ? ` 标题：${data.title}` : '');
+        loadDrafts();
+    } else if (data.status === 'processing' || data.status === 'pending') {
+        bar.className = 'status-bar status-pending';
+        bar.textContent = '⏳ ' + (data.step || 'AI 正在生成中...（约3-5分钟）');
+        setTimeout(pollStatus, 8000);
+    } else if (data.status === 'error') {
+        bar.className = 'status-bar status-idle';
+        bar.textContent = '❌ 失败：' + (data.message || '未知错误');
+    } else {
+        bar.className = 'status-bar status-idle';
+        bar.textContent = '系统就绪';
+    }
+}
+
+// ==================== Hot ====================
+let hotCurrentDate = new Date().toISOString().slice(0,10);
+let hotDates = [];
+
+async function loadHot() {
+    const q = document.getElementById('hot-search')?.value?.trim() || '';
+    try {
+        const res = await fetch(API + `/hot?date=${hotCurrentDate}&top=10${q ? '&q='+encodeURIComponent(q) : ''}`);
+        const data = await res.json();
+        hotDates = data.dates || []; hotCurrentDate = data.current_date || hotCurrentDate;
+        document.getElementById('hot-date').textContent = hotCurrentDate;
+        const sel = document.getElementById('hot-date-select');
+        sel.innerHTML = hotDates.map(d => `<option value="${d}" ${d===hotCurrentDate?'selected':''}>${d}</option>`).join('');
+        const platforms = data.platforms || {};
+        const content = document.getElementById('hot-content');
+        if (!Object.keys(platforms).length) { content.innerHTML = `<div class="card"><div style="padding:20px; text-align:center; color:#64748b;">${data.message || '暂无数据'}</div></div>`; return; }
+        let html = '<div class="row" style="flex-wrap:wrap; gap:16px;">';
+        for (const [pname, items] of Object.entries(platforms)) {
+            html += `<div style="flex:1; min-width:320px;"><div class="card"><h3 style="font-size:14px;">📌 ${pname}</h3><ul class="hot-list" style="padding:0 16px;">`;
+            items.forEach(item => {
+                const title = q ? item.title.replace(new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi'), m => `<span style="color:#f59e0b">${m}</span>`) : item.title;
+                html += `<li class="hot-item"><span class="hot-title" onclick="useHot('${item.title.replace(/'/g,"\\'")}')">${item.rank}. ${title}</span><button class="btn btn-secondary btn-sm" onclick="useHot('${item.title.replace(/'/g,"\\'")}')">用这个</button></li>`;
+            });
+            html += '</ul></div></div>';
+        }
+        content.innerHTML = html + '</div>';
+    } catch(e) { showToast('热点加载失败: ' + e.message); }
+}
+function hotNav(dir) { const idx = hotDates.indexOf(hotCurrentDate); const n = idx - dir; if (n >= 0 && n < hotDates.length) { hotCurrentDate = hotDates[n]; loadHot(); } }
+document.getElementById('hot-search')?.addEventListener('keydown', e => { if (e.key === 'Enter') loadHot(); });
+function useHot(title) { document.getElementById('keyword').value = title; switchTab('jobs'); showToast('已填入关键词'); }
+
+// ==================== Drafts ====================
+let draftsPage = 1;
+const draftsLimit = 10;
+
+async function loadDrafts(page = draftsPage) {
+    draftsPage = page;
+    const res = await fetch(API + `/drafts?page=${draftsPage}&limit=${draftsLimit}`);
+    const payload = await res.json();
+    const drafts = payload.items || [];
+    const total = payload.total || 0;
+    const list = document.getElementById('draft-list');
+    if (!list) return;
+
+    const totalPages = Math.max(1, Math.ceil(total / draftsLimit));
+
+    const pager = `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; color:#94a3b8; font-size:12px;">
+        <div>共 ${total} 篇 · 第 ${draftsPage}/${totalPages} 页</div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-secondary btn-sm" onclick="loadDrafts(1)" ${draftsPage<=1?'disabled':''}>首页</button>
+          <button class="btn btn-secondary btn-sm" onclick="loadDrafts(draftsPage-1)" ${draftsPage<=1?'disabled':''}>上一页</button>
+          <button class="btn btn-secondary btn-sm" onclick="loadDrafts(draftsPage+1)" ${draftsPage>=totalPages?'disabled':''}>下一页</button>
+          <button class="btn btn-secondary btn-sm" onclick="loadDrafts(totalPages)" ${draftsPage>=totalPages?'disabled':''}>末页</button>
+        </div>
+      </div>`;
+
+    list.innerHTML = pager + (drafts.map(d => {
+        const date = new Date(d.modified * 1000).toLocaleString('zh-CN');
+        const title = d.title || d.name;
+        const digest = d.digest ? `<div style="color:#64748b; font-size:12px; margin-top:4px;">${d.digest}</div>` : '';
+        const accTag = d.account_id ? `<span style="background:#1e3a5f; color:#60a5fa; padding:2px 8px; border-radius:4px; font-size:11px; margin-left:8px;">${d.account_id}</span>` : '';
+        return `<div class="draft-item" id="draft-item-${d.name}" onclick="selectDraft('${d.name}')" style="cursor:pointer; flex-wrap:wrap; gap:10px; align-items:flex-start;">
+            <div style="flex:1; min-width:260px;">
+                <div style="font-weight:700;">📄 ${title}${accTag}</div>
+                ${digest}
+                <div style="color:#64748b; font-size:12px; margin-top:6px;">更新时间：${date} · 文件：${Math.round(d.size/1024)}KB</div>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <button class="btn btn-secondary btn-sm" onclick="openDraftDebug('${d.name}')">Debug</button>
+                <a href="${API}/preview/${d.name}" target="_blank" class="btn btn-secondary btn-sm">预览</a>
+                <button class="btn btn-danger btn-sm" onclick="deleteDraft('${d.name}', '${(title||'').replace(/'/g,"\\'")}')">删除</button>
+            </div>
+        </div>`;
+    }).join(''));
+
+    if (!drafts.length) {
+      list.innerHTML = pager + '<div style="color:#94a3b8; padding:12px;">暂无草稿</div>';
+    }
+}
+
+async function deleteDraft(name, title) {
+    const ok = confirm(`确认删除？\n\n${title || name}\n\n（会移动到 output/.trash，可恢复）`);
+    if (!ok) return;
+    try {
+        const res = await fetch(API + `/drafts/${encodeURIComponent(name)}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+            showToast('已删除（已移入 .trash）✅');
+            loadDrafts(draftsPage);
+        } else {
+            showToast('删除失败: ' + (data.error || 'unknown'));
+        }
+    } catch (e) {
+        showToast('删除失败: ' + e.message);
+    }
+}
+
+function closeDraftDebug() {
+    const m = document.getElementById('draft-debug-modal');
+    if (m) m.style.display = 'none';
+}
+
+async function openDraftDebug(name) {
+    const m = document.getElementById('draft-debug-modal');
+    const body = document.getElementById('draft-debug-body');
+    if (!m || !body) return;
+    m.style.display = 'block';
+    body.innerHTML = '<div style="color:#94a3b8;">加载中...</div>';
+
+    try {
+        const res = await fetch(API + `/drafts/${encodeURIComponent(name)}/debug`);
+        const data = await res.json();
+        if (!data.success) {
+            body.innerHTML = `<div style="color:#fca5a5;">${data.error || '加载失败'}</div>`;
+            return;
+        }
+        const meta = data.meta || {};
+        const pipe = data.pipeline || {};
+        const task = data.task || {};
+        const dbg = (data.debug || {});
+        const final = (dbg.final || {});
+        const prompts = (dbg.prompts || {});
+        const style = (dbg.style || {});
+        const images = (dbg.images || {});
+        const wechatDraft = (dbg.wechat_draft || {});
+
+        const block = (title, content) => `
+            <div style="margin-bottom:14px;">
+                <div style="font-weight:700; color:#60a5fa; margin-bottom:6px;">${title}</div>
+                <pre style="white-space:pre-wrap; background:#0f172a; border:1px solid #334155; border-radius:10px; padding:12px; font-size:12px; line-height:1.6; color:#e2e8f0;">${content || ''}</pre>
+            </div>`;
+
+        const info = `标题：${final.title || meta.title || ''}\n账号：${final.account_id || meta.account_id || ''}\n来源：${final.source_platform || ''} ${final.source_topic ? '· ' + final.source_topic : ''}\n主题模板(theme)：${final.theme || meta.theme || pipe.theme || task.theme || ''}\n创建：${final.created_at || meta.created_at || pipe.created_at || ''}\n完成：${final.done_at || ''}`;
+
+        const articlePrompt = prompts.article_prompt || task.article_prompt || '';
+        const titlePrompt = prompts.title_prompt || task.title_prompt || '';
+        const coverPrompt = prompts.cover_prompt || '';
+        const inlinePrompts = (prompts.inline_prompts || []).map((x,i)=>`[${i+1}] after_section=${x.after_section}\n${x.prompt}`).join('\n\n');
+
+        const styleInfo = `style_prefix：${style.style_prefix || ''}\ninline_prompt_extra：${style.inline_prompt_extra || ''}\ninline_count：${style.inline_count ?? ''}\ncover_resolution：${style.cover_resolution ?? ''}\ninline_resolution：${style.inline_resolution ?? ''}`;
+
+        const uploadInfo = `cover_upload_error：${images.cover_upload_error || ''}\ninline_upload_errors：${JSON.stringify(images.inline_upload_errors || [], null, 2)}\n\ncover_upload：${JSON.stringify(images.cover_upload || {}, null, 2)}\n\ninline_uploads：${JSON.stringify(images.inline_uploads || [], null, 2)}`;
+
+        const draftInfo = JSON.stringify(wechatDraft || {}, null, 2);
+
+        body.innerHTML = [
+            block('信息', info),
+            block('生成标题 Prompt（title_prompt）', titlePrompt || '(无/未记录)'),
+            block('生成文章 Prompt（article_prompt）', articlePrompt || '(未找到：该文章可能不是通过 pending_tasks 生成，或已被清理)'),
+            block('首图 Prompt（cover_prompt）', coverPrompt || '(无)'),
+            block('插图 Prompts（inline_prompts）', inlinePrompts || '(无)'),
+            block('风格/模板信息', styleInfo),
+            block('上传/插图插入信息', uploadInfo),
+            block('微信草稿返回（draft）', draftInfo),
+            block('Pipeline Debug（原始）', JSON.stringify(pipe, null, 2)),
+        ].join('');
+
+    } catch (e) {
+        body.innerHTML = `<div style="color:#fca5a5;">加载失败：${e.message}</div>`;
+    }
+}
+
+// ==================== Config ====================
+async function loadConfig() {
+    const res = await fetch(API + '/config'); const cfg = await res.json();
+    document.getElementById('cfg_hunyuan_secret_id').value = cfg.hunyuan_secret_id || '';
+    document.getElementById('cfg_hunyuan_secret_key').value = cfg.hunyuan_secret_key || '';
+    document.getElementById('cfg_hunyuan_region').value = cfg.hunyuan_region || '';
+}
+async function saveConfig() {
+    const cfg = {
+        hunyuan_secret_id: document.getElementById('cfg_hunyuan_secret_id').value,
+        hunyuan_secret_key: document.getElementById('cfg_hunyuan_secret_key').value,
+        hunyuan_region: document.getElementById('cfg_hunyuan_region').value,
+    };
+    const res = await fetch(API + '/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg) });
+    const data = await res.json();
+    showToast(data.success ? '已保存 ✅' : '保存失败');
+}
+
+async function exportConfig() {
+    try {
+        const res = await fetch(API + '/export');
+        const blob = await res.blob();
+        const cd = res.headers.get('Content-Disposition') || '';
+        const match = cd.match(/filename="?([^"]+)"?/);
+        const filename = match ? match[1] : `artbot-config-${new Date().toISOString().slice(0,10)}.json`;
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        showToast('配置已导出 📦');
+    } catch(e) {
+        showToast('导出失败: ' + e.message);
+    }
+}
+
+async function importConfig(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const resultDiv = document.getElementById('backup-result');
+    
+    if (!confirm(`确定要从 "${file.name}" 恢复配置吗？\n当前配置会自动备份。`)) {
+        input.value = '';
+        return;
+    }
+    
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch(API + '/import', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+            resultDiv.innerHTML = `<div style="color:#4ade80; padding:8px; background:#0f2918; border-radius:6px;">
+                ✅ ${data.message}<br>
+                <span style="font-size:12px;">已恢复: ${data.restored.join(', ')}</span>
+            </div>`;
+            showToast('配置已恢复 ✅');
+            // Reload current page data
+            loadConfig();
+            loadWritingStyles();
+        } else {
+            resultDiv.innerHTML = `<div style="color:#f87171; padding:8px; background:#2a0f0f; border-radius:6px;">❌ ${data.error}</div>`;
+        }
+    } catch(e) {
+        resultDiv.innerHTML = `<div style="color:#f87171; padding:8px;">❌ ${e.message}</div>`;
+    }
+    input.value = '';
+}
+
+// ==================== Writing Styles ====================
+let accountsCache = [];
+let writingStylesCache = [];
+
+async function loadWritingStyles() {
+    const res = await fetch(API + '/writing_styles');
+    writingStylesCache = await res.json();
+    renderStylesList();
+}
+
+async function saveWritingStyles() {
+    await fetch(API + '/writing_styles', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(writingStylesCache),
+    });
+    showToast('风格模板已保存 ✅');
+}
+
+function renderStylesList() {
+    const box = document.getElementById('styles-list');
+    if (!box) return;
+    if (!writingStylesCache.length) {
+        box.innerHTML = '<div style="color:#64748b; padding:12px;">暂无风格模板。点击下方按钮添加。</div>';
+        return;
+    }
+    box.innerHTML = writingStylesCache.map((ws, i) => {
+        const artCount = ws.articles?.length || 0;
+        return `<div class="card" style="background:#0f172a; margin-bottom:12px;">
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+                <input value="${ws.name||''}" placeholder="风格名称（如：半佛仙人风）"
+                    oninput="writingStylesCache[${i}].name=this.value"
+                    style="flex:1; font-weight:600; font-size:15px;">
+                <span style="color:#64748b; font-size:12px; white-space:nowrap;">${artCount} 篇参考</span>
+                <button class="btn btn-secondary btn-sm" onclick="removeWritingStyle(${i})" style="color:#ef4444;">✕ 删除</button>
+            </div>
+            <div style="display:flex; gap:16px;">
+                <div style="flex:1;">
+                    <label style="color:#94a3b8; font-size:12px; margin-bottom:6px; display:block;">参考文章（多篇用 <code style="color:#f59e0b;">{{----------}}</code> 分隔）</label>
+                    <textarea rows="10" style="width:100%; font-size:13px; line-height:1.6;"
+                        oninput="updateStyleArticles(${i}, this.value)"
+                        placeholder="在此粘贴参考文章...&#10;&#10;多篇文章之间用 {{----------}} 分隔&#10;&#10;示例：&#10;第一篇文章正文内容...&#10;&#10;{{----------}}&#10;&#10;第二篇文章正文内容..."
+                    >${(ws.articles||[]).join('\n\n{{----------}}\n\n')}</textarea>
+                </div>
+            </div>
+            <div style="margin-top:8px; display:flex; justify-content:flex-end;">
+                <button class="btn btn-primary btn-sm" onclick="saveWritingStyles()">💾 保存此风格</button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function addWritingStyle() {
+    const id = 'style_' + Date.now().toString(36);
+    writingStylesCache.push({ id, name: '', articles: [] });
+    renderStylesList();
+}
+
+function removeWritingStyle(i) {
+    if (!confirm('确定删除此风格？')) return;
+    writingStylesCache.splice(i, 1);
+    saveWritingStyles();
+    renderStylesList();
+}
+
+function updateStyleArticles(i, raw) {
+    writingStylesCache[i].articles = raw.split('{{----------}}').map(s => s.trim()).filter(Boolean);
+}
+
+// ==================== Accounts ====================
+
+function _platformLabel(p) {
+    return { wechat_mp: '公众号', xhs: '小红书' }[p] || p;
+}
+
+function _accountRow(acc, idx) {
+    const cred = acc.credentials || {};
+    const isWechat = acc.platform === 'wechat_mp';
+    return `
+    <div class="card" style="background:#0f172a; border:1px solid #334155; margin-bottom:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div style="font-weight:700;">${acc.name || ('账号'+(idx+1))} <span style="font-size:12px; color:#64748b;">(${_platformLabel(acc.platform)})</span></div>
+        <button class="btn btn-danger btn-sm" onclick="removeAccount('${acc.id}')">删除</button>
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <div style="flex:1;">
+          <div class="form-group">
+            <label>ID（唯一标识）</label>
+            <input value="${acc.id||''}" oninput="accountsCache[${idx}].id=this.value">
+            <div class="hint">自定义英文标识，如 mp_tech、xhs_life。用于内部引用和文件目录命名。</div>
+          </div>
+          <div class="form-group"><label>名称</label><input value="${acc.name||''}" oninput="accountsCache[${idx}].name=this.value"></div>
+          <div class="form-group">
+            <label>平台</label>
+            <select onchange="accountsCache[${idx}].platform=this.value; document.getElementById('accounts-list').innerHTML=accountsCache.map((a,i)=>_accountRow(a,i)).join('');">
+              <option value="wechat_mp" ${acc.platform==='wechat_mp'?'selected':''}>微信公众号</option>
+              <option value="xhs" ${acc.platform==='xhs'?'selected':''}>小红书</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>启用</label>
+            <select onchange="accountsCache[${idx}].enabled=(this.value==='true')">
+              <option value="true" ${acc.enabled!==false?'selected':''}>启用</option>
+              <option value="false" ${acc.enabled===false?'selected':''}>禁用</option>
+            </select>
+          </div>
+        </div>
+        <div style="flex:1;">
+          ${isWechat ? `
+            <div class="form-group">
+              <label>公众号 AppID</label>
+              <input value="${cred.appid||''}" oninput="accountsCache[${idx}].credentials=accountsCache[${idx}].credentials||{};accountsCache[${idx}].credentials.appid=this.value">
+              <div class="hint">登录 <a href="https://mp.weixin.qq.com" target="_blank" style="color:#60a5fa;">微信公众平台</a> → 设置与开发 → 基本配置 → 开发者ID(AppID)</div>
+            </div>
+            <div class="form-group">
+              <label>公众号 AppSecret</label>
+              <input type="password" value="${cred.secret||''}" oninput="accountsCache[${idx}].credentials=accountsCache[${idx}].credentials||{};accountsCache[${idx}].credentials.secret=this.value">
+              <div class="hint">同上页面，点击"重置"获取 Secret（请妥善保管）。需将服务器IP加入白名单。</div>
+            </div>
+          ` : `
+            <div style="padding:20px; color:#64748b; font-size:13px;">
+              小红书暂不需要凭证配置（待接入发布API后添加）。
+            </div>
+          `}
+        </div>
+      </div>
+    </div>`;
+}
+
+async function loadAccounts(forProfile=false) {
+    const res = await fetch(API + '/accounts');
+    const data = await res.json();
+    accountsCache = data.accounts || [];
+    const box = document.getElementById('accounts-list');
+    if (box) box.innerHTML = accountsCache.map((a,i)=>_accountRow(a,i)).join('') || '<div style="color:#94a3b8;">暂无账号，点击"+ 新增账号"添加</div>';
+    const opts = accountsCache.map(a=>`<option value="${a.id}">${a.name} (${_platformLabel(a.platform)})</option>`).join('');
+    ['job_account', 'profile_account'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '<option value="">(选择账号)</option>' + opts;
+    });
+
+    // Always default-select first account for Profiles if empty
+    const profSel = document.getElementById('profile_account');
+    if (profSel && !profSel.value && accountsCache.length > 0) {
+        profSel.value = accountsCache[0].id;
+    }
+
+    if (forProfile) {
+        // Ensure themes are ready for platform-specific dropdown
+        await getWechatThemes();
+        // Default select the first account when entering Profiles
+        const sel = document.getElementById('profile_account');
+        if (sel && !sel.value && accountsCache.length > 0) sel.value = accountsCache[0].id;
+        await loadWriters();
+        renderProfileEditor();
+    }
+
+    // Keep Jobs theme grid in sync with account platform
+    await renderJobThemeGrid();
+}
+
+function addAccount() {
+    const id = 'acc_' + Math.random().toString(36).slice(2,8);
+    accountsCache.push({id, platform:'wechat_mp', name:'新账号', enabled:true, credentials:{}, profile:{}});
+    document.getElementById('accounts-list').innerHTML = accountsCache.map((a,i)=>_accountRow(a,i)).join('');
+}
+function removeAccount(id) {
+    accountsCache = accountsCache.filter(a=>a.id!==id);
+    document.getElementById('accounts-list').innerHTML = accountsCache.map((a,i)=>_accountRow(a,i)).join('');
+}
+async function saveAccounts() {
+    const res = await fetch(API + '/accounts', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({accounts: accountsCache}) });
+    const data = await res.json();
+    showToast(data.success ? '已保存 ✅' : '失败：'+(data.error||''));
+    await loadAccounts();
+}
+
+// ==================== Profiles ====================
+let writersCache = {};
+
+async function loadWriters() {
+    const res = await fetch(API + '/writers');
+    writersCache = await res.json();
+}
+function renderProfileEditor() {
+    let id = document.getElementById('profile_account')?.value;
+    if (!id && accountsCache.length > 0) {
+        // recover: auto-select first account
+        const sel = document.getElementById('profile_account');
+        if (sel) { sel.value = accountsCache[0].id; id = sel.value; }
+    }
+    const acc = accountsCache.find(a=>a.id===id);
+    const box = document.getElementById('profile-editor');
+    if (!box) return;
+    if (!acc) { box.innerHTML = '<div style="color:#94a3b8;">请选择账号</div>'; updateDebugPrompts(null); return; }
+    acc.profile = acc.profile || {};
+    const p = acc.profile;
+    const img = p.image || (p.image={});
+    const style = p.writing_style || (p.writing_style={});
+    const content = p.content || (p.content={});
+
+    let themeOpts = '';
+    for (const [k, v] of Object.entries(window._allThemes || {})) {
+        const sel = (p.layout_style_id || 'snow-cold') === k ? 'selected' : '';
+        const layout = v.layout || 'card';
+        themeOpts += `<option value="${k}" ${sel}>${v.name} (${LAYOUT_LABELS[layout]||layout})</option>`;
+    }
+
+    const _s = (field, fallback) => style[field] || fallback || '';
+    const _kw = () => { const v = style.keywords; return Array.isArray(v) ? v.join(',') : (v||''); };
+
+    box.innerHTML = `
+      <div style="background:#0f172a; padding:20px; border-radius:12px; margin-bottom:16px;">
+        <h4 style="color:#a78bfa; font-size:14px; margin-bottom:14px;">✍️ 写作风格配置</h4>
+
+        <div class="form-group">
+          <label>账号领域</label>
+          <input value="${_s('domain')}" oninput="_setStyle('${id}','domain',this.value)" placeholder="如：科技数码、美妆护肤、职场成长、情感生活">
+          <div class="hint">账号的内容领域定位，决定选题方向和专业术语</div>
+        </div>
+
+        <div class="form-group">
+          <label>账号人设</label>
+          <textarea rows="2" oninput="_setStyle('${id}','persona',this.value)" placeholder="如：数码爱好者，喜欢分享科技新品和使用心得">${_s('persona')}</textarea>
+          <div class="hint">你想展现的角色形象，影响写作视角和口吻</div>
+        </div>
+
+        <div class="form-group">
+          <label>目标受众</label>
+          <input value="${_s('audience')}" oninput="_setStyle('${id}','audience',this.value)" placeholder="如：18-35岁，关注科技趋势的年轻人">
+          <div class="hint">内容面向的读者画像，影响用词深度和话题选择</div>
+        </div>
+
+        <div class="form-group">
+          <label>语气风格</label>
+          <input value="${_s('tone')}" oninput="_setStyle('${id}','tone',this.value)" placeholder="如：真诚分享 / 犀利点评 / 轻松幽默 / 专业测评 / 干货教程">
+          <div class="hint">整体文字调性，影响措辞和表达方式</div>
+        </div>
+
+        <div class="form-group">
+          <label>内容调性关键词</label>
+          <input value="${_kw()}" oninput="_setStyle('${id}','keywords',this.value.split(',').map(s=>s.trim()).filter(Boolean))" placeholder="真实体验,实用推荐,科技生活（逗号分隔）">
+          <div class="hint">3-5个关键词，概括内容调性</div>
+        </div>
+
+        <div class="form-group">
+          <label>模仿风格</label>
+          <select onchange="_setStyle('${id}','reference',this.value); updateDebugPrompts(accountsCache.find(a=>a.id==='${id}'))">
+            <option value="">不模仿（使用默认风格）</option>
+            ${(writingStylesCache||[]).map(ws => `<option value="${ws.id}" ${style.reference===ws.id?'selected':''}>${ws.name}（${ws.articles?.length||0}篇参考）</option>`).join('')}
+          </select>
+          <div class="hint">在 Settings 页面管理风格模板，添加参考文章</div>
+        </div>
+
+        <div class="form-group">
+          <label>额外写作要求</label>
+          <textarea rows="2" oninput="_setStyle('${id}','extra_instructions',this.value)" placeholder="如：每篇必须包含3个以上具体案例、结尾要有行动建议">${_s('extra_instructions')}</textarea>
+          <div class="hint">任何额外的写作规则或偏好，会附加到 prompt 末尾</div>
+        </div>
+      </div>
+
+      <div style="background:#0f172a; padding:20px; border-radius:12px; margin-top:12px;">
+        <h4 style="color:#f472b6; font-size:14px; margin-bottom:12px;">🏷️ 标题生成配置</h4>
+        <p style="color:#64748b; font-size:12px; margin-bottom:12px;">控制文章标题的风格和热点融合方式。生成文章时会自动读取这里的配置。</p>
+        <div class="form-group">
+          <label>标题风格描述</label>
+          <textarea rows="3" oninput="_setTitle('${id}','style_desc',this.value); updateDebugPrompts(accountsCache.find(a=>a.id==='${id}'))"
+            placeholder="如：禅意克制，点到即止，不做标题党，多用意象和隐喻&#10;或：犀利观点型，一针见血，直击痛点&#10;或：悬念型，引发好奇心，让人想点进来看"
+          >${(acc.profile?.title_config?.style_desc)||''}</textarea>
+          <div class="hint">描述你想要的标题风格，AI 会据此生成标题</div>
+        </div>
+        <div class="form-group">
+          <label>热点与自身内容配比</label>
+          <select onchange="_setTitle('${id}','hotspot_ratio',this.value); updateDebugPrompts(accountsCache.find(a=>a.id==='${id}'))">
+            <option value="hot_dominant" ${(acc.profile?.title_config?.hotspot_ratio)==='hot_dominant'?'selected':''}>热点主导（70%热点 + 30%账号视角）</option>
+            <option value="balanced" ${(acc.profile?.title_config?.hotspot_ratio||'balanced')==='balanced'?'selected':''}>均衡融合（50%热点 + 50%账号视角）</option>
+            <option value="self_dominant" ${(acc.profile?.title_config?.hotspot_ratio)==='self_dominant'?'selected':''}>账号主导（30%热点 + 70%账号视角）</option>
+            <option value="self_only" ${(acc.profile?.title_config?.hotspot_ratio)==='self_only'?'selected':''}>纯账号视角（热点仅作灵感，标题不体现热点）</option>
+          </select>
+          <div class="hint">决定标题中热点事件和账号自身定位的权重分配</div>
+        </div>
+        <div class="row" style="gap:12px;">
+          <div class="col-4">
+            <div class="form-group">
+              <label>标题最短字数（可选）</label>
+              <input type="number" value="${(acc.profile?.title_config?.len_min??'')}" min="6" max="60" placeholder="例如 12" oninput="_setTitle('${id}','len_min', this.value===''?null:parseInt(this.value)); updateDebugPrompts(accountsCache.find(a=>a.id==='${id}'))">
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="form-group">
+              <label>标题最长字数（可选）</label>
+              <input type="number" value="${(acc.profile?.title_config?.len_max??'')}" min="8" max="80" placeholder="例如 28" oninput="_setTitle('${id}','len_max', this.value===''?null:parseInt(this.value)); updateDebugPrompts(accountsCache.find(a=>a.id==='${id}'))">
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="form-group">
+              <label>标题额外要求</label>
+              <input value="${(acc.profile?.title_config?.extra)||''}" oninput="_setTitle('${id}','extra',this.value); updateDebugPrompts(accountsCache.find(a=>a.id==='${id}'))"
+                placeholder="如：不超过20字 / 必须包含数字 / 避免问句">
+            </div>
+          </div>
+        </div>
+        <div class="hint">建议设置“最长字数”，防止标题过长；不填则自动。</div>
+      </div>
+
+      <div class="form-group">
+        <label>排版主题</label>
+        <select onchange="accountsCache.find(a=>a.id==='${id}').profile.layout_style_id=this.value; updateDebugPrompts(accountsCache.find(a=>a.id==='${id}'))">${themeOpts}</select>
+      </div>
+
+      <div style="background:#0f172a; padding:20px; border-radius:12px; margin-top:12px;">
+        <h4 style="color:#34d399; font-size:14px; margin-bottom:12px;">📏 内容长度建议（选填）</h4>
+        <div class="row">
+          <div class="col-4">
+            <div class="form-group">
+              <label>建议段落数</label>
+              <input type="number" value="${content.section_count??''}" min="1" max="20" placeholder="例如 6" oninput="_setContent('${id}','section_count', this.value===''?null:parseInt(this.value))">
+              <div class="hint">希望文章大概分成多少段/小节（不填则自动）</div>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="form-group">
+              <label>建议最少字数</label>
+              <input type="number" value="${content.word_count_min??''}" min="200" max="10000" placeholder="例如 900" oninput="_setContent('${id}','word_count_min', this.value===''?null:parseInt(this.value))">
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="form-group">
+              <label>建议最多字数</label>
+              <input type="number" value="${content.word_count_max??''}" min="200" max="20000" placeholder="例如 1400" oninput="_setContent('${id}','word_count_max', this.value===''?null:parseInt(this.value))">
+            </div>
+          </div>
+        </div>
+        <div class="hint">用于让生成结果更稳定：比如“900-1400字、6段左右”。</div>
+      </div>
+
+      <div style="background:#0f172a; padding:20px; border-radius:12px; margin-top:12px;">
+        <h4 style="color:#60a5fa; font-size:14px; margin-bottom:12px;">📷 图片生成配置</h4>
+        <p style="color:#64748b; font-size:12px; margin-bottom:12px;"><strong style="color:#94a3b8;">基于文章语义 + 视觉吸引力</strong>是内置基础要求，这里只填额外风格偏好。</p>
+
+        <div class="form-group">
+          <label>封面图风格要求</label>
+          <textarea rows="2" oninput="_setImg('${id}','cover_prompt',this.value); updateDebugPrompts(accountsCache.find(a=>a.id==='${id}'))" placeholder="如：科技感、暗色调 / 黑白木刻版画风 / 简洁扁平插画">${img.cover_prompt||''}</textarea>
+          <div class="hint">封面图的视觉风格。语义内容由文章标题自动提供。</div>
+        </div>
+        <div class="form-group">
+          <label>文中插图数量</label>
+          <input type="number" value="${img.inline_count??2}" min="0" max="9" oninput="_setImg('${id}','inline_count',parseInt(this.value||'0'))">
+        </div>
+        <div class="form-group">
+          <label>插图风格要求</label>
+          <textarea rows="2" oninput="_setImg('${id}','inline_prompt',this.value); updateDebugPrompts(accountsCache.find(a=>a.id==='${id}'))" placeholder="如：扁平插画风、清新水彩、写实摄影、与封面统一风格">${img.inline_prompt||''}</textarea>
+          <div class="hint">每张插图会自动关联对应段落的语义内容。</div>
+        </div>
+      </div>
+    `;
+    updateDebugPrompts(acc);
+}
+
+function _setStyle(accId, field, value) {
+    const acc = accountsCache.find(a=>a.id===accId);
+    if (!acc) return;
+    acc.profile = acc.profile || {};
+    acc.profile.writing_style = acc.profile.writing_style || {};
+    acc.profile.writing_style[field] = value;
+    updateDebugPrompts(acc);
+}
+function _setImg(accId, field, value) {
+    const acc = accountsCache.find(a=>a.id===accId);
+    if (!acc) return;
+    acc.profile = acc.profile || {};
+    acc.profile.image = acc.profile.image || {};
+    acc.profile.image[field] = value;
+}
+
+function _setContent(accId, field, value) {
+    const acc = accountsCache.find(a=>a.id===accId);
+    if (!acc) return;
+    acc.profile = acc.profile || {};
+    acc.profile.content = acc.profile.content || {};
+    acc.profile.content[field] = value;
+    updateDebugPrompts(acc);
+}
+
+function _setTitle(accId, field, value) {
+    const acc = accountsCache.find(a=>a.id===accId);
+    if (!acc) return;
+    acc.profile = acc.profile || {};
+    acc.profile.title_config = acc.profile.title_config || {};
+    acc.profile.title_config[field] = value;
+}
+
+function updateDebugPrompts(acc) {
+    const box = document.getElementById('debug-prompts');
+    if (!box) return;
+
+    // If caller didn't pass account (or stale ref), try to resolve from current selector
+    if (!acc) {
+        const id = document.getElementById('profile_account')?.value;
+        if (id) acc = accountsCache.find(a=>a.id===id);
+    }
+
+    if (!acc) {
+        const id = document.getElementById('profile_account')?.value || '';
+        box.innerHTML = `<div style="color:#64748b;">选择账号后显示（当前选择：${id||'空'}，账号数：${accountsCache?.length||0}）</div>`;
+        return;
+    }
+    const p = acc.profile || {};
+    const s = p.writing_style || {};
+    const img = p.image || {};
+    const platform = acc.platform === 'wechat_mp' ? '公众号' : '小红书';
+    const ph = (label) => `<span style="color:#f59e0b">{${label}}</span>`;
+
+    const domain = s.domain || ph('未填写：账号领域');
+    const persona = s.persona || ph('未填写：账号人设');
+    const audience = s.audience || ph('未填写：目标受众');
+    const tone = s.tone || ph('未填写：语气风格');
+    const keywords = (Array.isArray(s.keywords) ? s.keywords.join('、') : s.keywords) || ph('未填写：调性关键词');
+    const _refStyle = s.reference ? (writingStylesCache||[]).find(ws=>ws.id===s.reference) : null;
+    const reference = _refStyle ? `${_refStyle.name}（${_refStyle.articles?.length||0}篇参考文章）` : '（无，使用平台默认风格）';
+    const extraInst = s.extra_instructions || '（无）';
+    const coverStyle = img.cover_prompt || '（无额外要求）';
+    const inlineStyle = img.inline_prompt || '（无额外要求）';
+
+    const c = p.content || {};
+    const secCount = (c.section_count!=null && c.section_count!=='') ? c.section_count : '（未设置）';
+    const wcMin = (c.word_count_min!=null && c.word_count_min!=='') ? c.word_count_min : '（未设置）';
+    const wcMax = (c.word_count_max!=null && c.word_count_max!=='') ? c.word_count_max : '（未设置）';
+
+    const tc = p.title_config || {};
+    const titleStyleDesc = tc.style_desc || ph('未配置：标题风格描述');
+    const _hrMap = { hot_dominant:'热点主导（70%热点+30%账号视角）', balanced:'均衡融合（50%+50%）', self_dominant:'账号主导（30%热点+70%账号视角）', self_only:'纯账号视角（热点仅作灵感）' };
+    const hotRatio = _hrMap[tc.hotspot_ratio||'balanced'] || '均衡融合';
+    const titleLenMin = (tc.len_min!=null && tc.len_min!=='') ? tc.len_min : '（未设置）';
+    const titleLenMax = (tc.len_max!=null && tc.len_max!=='') ? tc.len_max : '（未设置）';
+    const titleExtra = tc.extra || '（无）';
+
+    const _withLineNumbers = (txt) => {
+      const lines = String(txt||'').split('\n');
+      return lines.map((l,i)=>`${String(i+1).padStart(4,' ')} | ${l}`).join('\n');
+    };
+    const _pre = (title, color, content) => `
+      <div style="margin-bottom:16px;">
+        <div style="color:${color}; font-weight:600; font-size:13px; margin-bottom:6px;">${title}</div>
+        <pre style="background:#0f172a; padding:14px; border-radius:8px; font-size:12px; line-height:1.7; white-space:pre; overflow:auto; color:#cbd5e1; border:1px solid #334155; max-height:520px;">${_withLineNumbers(content)}</pre>
+      </div>`;
+
+    const articlePrompt = `你是一位${platform}内容创作者。
+
+## 账号定位
+- 领域：${domain}
+- 人设：${persona}
+- 受众：${audience}
+- 语气：${tone}
+- 调性关键词：${keywords}
+- 风格参考：${reference}
+- 段落建议：${secCount}
+- 字数建议：${wcMin} ~ ${wcMax}
+
+## 额外要求
+${extraInst}
+
+## 任务
+请根据以下热点/主题，创作一篇高质量${platform}文章。
+
+主题/关键词：${ph('运行时传入：用户输入的关键词或热点标题')}
+搜索补充资料：${ph('运行时传入：搜索引擎返回的背景信息')}
+
+要求：
+1. 标题要有吸引力和点击欲
+2. 内容有深度、有观点、有价值
+3. 结构清晰，段落分明
+4. 符合${platform}平台的内容规范和用户阅读习惯
+
+直接输出标题和正文。`;
+
+    const coverPromptText = `请为以下文章生成封面图。
+
+文章标题：${ph('运行时传入：AI生成的文章标题')}
+文章摘要：${ph('运行时传入：文章核心观点概要')}
+
+基础要求（已内置）：
+- 基于文章语义，视觉吸引力强
+- 适合${platform}信息流展示
+- ${acc.platform === 'xhs' ? '3:4竖版比例' : '16:9横版比例'}
+
+额外风格要求：${coverStyle}`;
+
+    const inlinePromptText = `请为文章的第 ${ph('N')} 段生成配图。
+
+所在段落标题：${ph('运行时传入：该段落的小标题')}
+段落核心内容：${ph('运行时传入：该段落的语义摘要，由AI根据上下文提炼')}
+文章整体主题：${ph('运行时传入：文章标题')}
+
+基础要求（已内置）：
+- 与段落内容语义强相关
+- 视觉吸引力强，构图美观
+- 分辨率 1024×1024
+
+额外风格要求：${inlineStyle}`;
+
+    const titlePrompt = `为以下热点主题生成文章标题。
+
+热点主题：${ph('运行时传入：热点标题或关键词')}
+热点来源：${ph('运行时传入：百度热搜/微博 等')}
+
+## 账号定位
+- 领域：${domain}
+- 人设：${persona}
+- 受众：${audience}
+
+## 标题风格要求
+${titleStyleDesc}
+
+## 热点融合策略
+${hotRatio}
+
+## 标题长度（字数建议）
+- 最短：${titleLenMin}
+- 最长：${titleLenMax}
+
+## 额外约束
+${titleExtra}
+
+请生成 3 个候选标题，每个标题换行输出。`;
+
+    box.innerHTML =
+        _pre('🏷️ 标题生成 Prompt', '#f472b6', titlePrompt) +
+        _pre('📝 文章生成 Prompt', '#a78bfa', articlePrompt) +
+        _pre('🖼️ 封面图 Prompt', '#60a5fa', coverPromptText) +
+        _pre('🎨 文中插图 Prompt（每张插图各生成一次）', '#4ade80', inlinePromptText);
+}
+
+async function saveProfile() { await saveAccounts(); }
+async function saveProfile() { await saveAccounts(); }
+
+// ==================== Autotopic Run Once ====================
+async function runAutotopicOnce(){
+  showToast('正在执行选题...');
+  const res = await fetch(API + '/autotopic/run_once', {method:'POST'});
+  const data = await res.json();
+  if (data.success) {
+    showToast(`选题完成 ✅ 共${data.total_hot}条热点，${data.accounts_count}个账号`);
+    // Show result in a modal-like area below the button
+    const preview = document.getElementById('autotopic-result');
+    if (preview) {
+      preview.innerHTML = `<pre style="background:#0f172a; padding:14px; border-radius:8px; font-size:13px; line-height:1.8; white-space:pre-wrap; color:#cbd5e1; border:1px solid #334155; margin-top:12px;">${data.message||''}</pre>
+      <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+        <input id="at-selection" type="text" placeholder="输入选择，如 A1,A5" style="flex:1; padding:8px 12px; border-radius:8px; border:1px solid #334155; background:#0f172a; color:#e2e8f0; font-size:14px;">
+        <button class="btn btn-primary" onclick="runAutotopicGenerate()" style="white-space:nowrap;">🚀 生成选中文章</button>
+      </div>
+      <div id="at-gen-result" style="margin-top:8px;"></div>`;
+    }
+  } else {
+    showToast('触发失败：' + (data.error||''));
+  }
+}
+
+// ==================== Autotopic Select & Generate ====================
+async function runAutotopicGenerate() {
+    const input = document.getElementById('at-selection');
+    const resultBox = document.getElementById('at-gen-result');
+    const text = (input?.value || '').trim();
+    if (!text) { showToast('请输入选择，如 A1,A5'); return; }
+
+    // Step 1: Parse selection
+    resultBox.innerHTML = '<div style="color:#60a5fa;">⏳ 解析选择...</div>';
+    const selRes = await fetch(API + '/autotopic/select', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({selection: text}),
+    });
+    const selData = await selRes.json();
+    if (!selData.success) {
+        resultBox.innerHTML = `<div style="color:#f87171;">❌ ${selData.error}</div>`;
+        return;
+    }
+
+    // Step 2: Generate articles (synchronous, may take a while)
+    resultBox.innerHTML = `<div style="color:#60a5fa;">⏳ 正在生成 ${selData.count} 篇文章（AI写作 + 配图，约1-2分钟/篇）...</div>`;
+    try {
+        const genRes = await fetch(API + '/autotopic/generate', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({selections: selData.selections}),
+        });
+        const genData = await genRes.json();
+        if (genData.success) {
+            let html = '<div style="color:#4ade80; margin-bottom:8px;">✅ 生成完成！</div>';
+            for (const t of genData.tasks) {
+                if (t.error) {
+                    html += `<div style="color:#f87171;">❌ ${t.keyword}: ${t.error}</div>`;
+                } else {
+                    html += `<div style="margin-bottom:6px;">📄 <strong>${t.title||t.keyword}</strong> — <a href="${t.preview_url}" target="_blank" style="color:#60a5fa;">预览</a></div>`;
+                }
+            }
+            resultBox.innerHTML = html;
+        } else {
+            resultBox.innerHTML = `<div style="color:#f87171;">❌ ${genData.error||'生成失败'}</div>`;
+        }
+    } catch(e) {
+        resultBox.innerHTML = `<div style="color:#f87171;">❌ 请求失败: ${e.message}</div>`;
+    }
+}
+
+// ==================== Layouts ====================
+async function loadLayoutThemes() {
+    // Separate wechat vs xhs layouts (do not mix)
+    const platform = document.getElementById('layout-platform')?.value || 'wechat';
+
+    if (platform === 'xhs') {
+        const themes = await getXhsThemes();
+        if (!layoutSelectedTheme || !(layoutSelectedTheme in themes)) {
+            layoutSelectedTheme = Object.keys(themes||{})[0] || layoutSelectedTheme;
+        }
+        renderThemeGrid('layout-themes', themes, layoutSelectedTheme, k => {
+            layoutSelectedTheme = k;
+            loadLayoutThemes();
+        });
+        previewLayout();
+        return;
+    }
+
+    const themes = await getWechatThemes();
+    if (!layoutSelectedTheme || !(layoutSelectedTheme in themes)) {
+        layoutSelectedTheme = 'snow-cold';
+    }
+    renderThemeGrid('layout-themes', themes, layoutSelectedTheme, k => {
+        layoutSelectedTheme = k;
+        loadLayoutThemes();
+    });
+    previewLayout();
+}
+
+const _layoutCache = {};
+async function previewLayout() {
+    const platform = document.getElementById('layout-platform')?.value || 'wechat';
+    const box = document.getElementById('layout-preview');
+    if (!box) return;
+    const cacheKey = `${platform}:${layoutSelectedTheme}`;
+    
+    let html = _layoutCache[cacheKey];
+    if (!html) {
+        box.innerHTML = '<div style="padding:40px; text-align:center; color:#94a3b8;">加载预览中...</div>';
+        try {
+            const res = await fetch(API + '/layout/preview', {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ theme: layoutSelectedTheme, platform })
+            });
+            const data = await res.json();
+            html = data.html;
+            _layoutCache[cacheKey] = html;
+        } catch(e) {
+            box.innerHTML = `<div style="color:#f87171;">${e.message}</div>`;
+            return;
+        }
+    }
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'width:100%; min-height:600px; border:none;';
+    box.innerHTML = '';
+    box.appendChild(iframe);
+    iframe.contentDocument.open();
+    iframe.contentDocument.write(html);
+    iframe.contentDocument.close();
+        setTimeout(() => {
+            try { iframe.style.height = iframe.contentDocument.body.scrollHeight + 40 + 'px'; } catch(e) {}
+        }, 300);
+    } catch(e) { box.innerHTML = `<div style="padding:20px; color:#f87171;">预览加载失败: ${e.message}</div>`; }
+}
+
+// ==================== Autotopic ====================
+const ALL_HOT_SOURCES = ['weibo', 'zhihu', 'baidu', 'toutiao', 'bilibili', 'douyin', 'thepaper', 'reddit'];
+const ALL_PLATFORMS = ['wechat', 'xhs'];
+
+async function loadAutotopic() {
+    const res = await fetch(API + '/autotopic');
+    const cfg = await res.json();
+    document.getElementById('at_enabled').value = String(cfg.enabled || false);
+    document.getElementById('at_mode').value = cfg.mode || 'auto';
+    document.getElementById('at_auto_count').value = cfg.auto_count || 3;
+    document.getElementById('at_hot_title_count').value = cfg.hot_title_count || 3;
+    document.getElementById('at_self_title_count').value = cfg.self_title_count || 3;
+    document.getElementById('at_schedule').value = cfg.schedule || '0 9 * * *';
+    document.getElementById('at_timezone').value = cfg.timezone || 'Asia/Shanghai';
+    document.getElementById('at_search_engine').value = cfg.search_engine || 'brave';
+    document.getElementById('at_filter').value = (cfg.filter_keywords || []).join(',');
+    document.getElementById('at_exclude').value = (cfg.exclude_keywords || []).join(',');
+
+    const sources = cfg.hot_sources || [];
+    document.getElementById('at_sources').innerHTML = ALL_HOT_SOURCES.map(s =>
+        `<span class="chip ${sources.includes(s)?'chip-on':'chip-off'}" data-val="${s}" onclick="this.classList.toggle('chip-on');this.classList.toggle('chip-off');">${s}</span>`
+    ).join('');
+
+    const plats = cfg.target_platforms || [];
+    document.getElementById('at_platforms').innerHTML = ALL_PLATFORMS.map(p =>
+        `<span class="chip ${plats.includes(p)?'chip-on':'chip-off'}" data-val="${p}" onclick="this.classList.toggle('chip-on');this.classList.toggle('chip-off');">${{wechat:'公众号',xhs:'小红书'}[p]||p}</span>`
+    ).join('');
+}
+
+function _getChipValues(containerId) {
+    return [...document.getElementById(containerId).querySelectorAll('.chip-on')].map(el => el.dataset.val);
+}
+
+async function saveAutotopic() {
+    const cfg = {
+        enabled: document.getElementById('at_enabled').value === 'true',
+        mode: document.getElementById('at_mode').value,
+        auto_count: parseInt(document.getElementById('at_auto_count').value),
+        hot_title_count: parseInt(document.getElementById('at_hot_title_count').value),
+        self_title_count: parseInt(document.getElementById('at_self_title_count').value),
+        schedule: document.getElementById('at_schedule').value,
+        timezone: document.getElementById('at_timezone').value,
+        hot_sources: _getChipValues('at_sources'),
+        search_engine: document.getElementById('at_search_engine').value,
+        search_supplement: document.getElementById('at_search_engine').value !== 'none',
+        filter_keywords: document.getElementById('at_filter').value.split(',').map(s=>s.trim()).filter(Boolean),
+        exclude_keywords: document.getElementById('at_exclude').value.split(',').map(s=>s.trim()).filter(Boolean),
+        target_platforms: _getChipValues('at_platforms'),
+    };
+    const res = await fetch(API + '/autotopic', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(cfg) });
+    const data = await res.json();
+    showToast(data.success ? '自动选题配置已保存 ✅' : '保存失败');
+}
+
+// ==================== Autotopic Debug ====================
+function updateAutotopicDebug() {
+    const accId = document.getElementById('at_debug_account')?.value;
+    const acc = accountsCache.find(a => a.id === accId);
+    const box = document.getElementById('at-debug-prompts');
+    if (!box) return;
+    if (!acc) { box.innerHTML = '<div style="color:#64748b;">选择账号后显示</div>'; return; }
+
+    const p = acc.profile || {};
+    const s = p.writing_style || {};
+    const img = p.image || {};
+    const platform = acc.platform === 'wechat_mp' ? '公众号' : '小红书';
+    const ph = (label) => `<span style="color:#f59e0b">{${label}}</span>`;
+
+    const domain = s.domain || ph('未配置：账号领域');
+    const persona = s.persona || ph('未配置：账号人设');
+    const audience = s.audience || ph('未配置：目标受众');
+    const tone = s.tone || ph('未配置：语气风格');
+    const keywords = (Array.isArray(s.keywords) ? s.keywords.join('、') : s.keywords) || ph('未配置：调性关键词');
+    const _refStyle = s.reference ? (writingStylesCache||[]).find(ws=>ws.id===s.reference) : null;
+    const reference = _refStyle ? `${_refStyle.name}（${_refStyle.articles?.length||0}篇参考文章）` : '（无，使用平台默认风格）';
+    const extraInst = s.extra_instructions || '（无）';
+    const coverStyle = img.cover_prompt || '（无额外要求）';
+    const inlineStyle = img.inline_prompt || '（无额外要求）';
+
+    const tc2 = p.title_config || {};
+    const titleStyleDesc = tc2.style_desc || ph('未配置：标题风格描述');
+    const _hrMap3 = { hot_dominant:'热点主导（70%热点+30%账号视角）', balanced:'均衡融合（50%+50%）', self_dominant:'账号主导（30%热点+70%账号视角）', self_only:'纯账号视角' };
+    const hotRatio = _hrMap3[tc2.hotspot_ratio||'balanced'] || '均衡融合';
+    const titleExtra = tc2.extra || '（无）';
+
+    const c = p.content || {};
+    const secCount = (c.section_count!=null && c.section_count!=='') ? c.section_count : '（未设置）';
+    const wcMin = (c.word_count_min!=null && c.word_count_min!=='') ? c.word_count_min : '（未设置）';
+    const wcMax = (c.word_count_max!=null && c.word_count_max!=='') ? c.word_count_max : '（未设置）';
+
+    const mode = document.getElementById('at_mode')?.value || 'manual';
+    const hotCount = document.getElementById('at_hot_title_count')?.value || 3;
+    const selfCount = document.getElementById('at_self_title_count')?.value || 3;
+    const autoCount = document.getElementById('at_auto_count')?.value || 3;
+    const sources = _getChipValues('at_sources');
+    const filterKw = document.getElementById('at_filter')?.value || '';
+    const excludeKw = document.getElementById('at_exclude')?.value || '';
+
+    const _withLineNumbers = (txt) => {
+      const lines = String(txt||'').split('\n');
+      return lines.map((l,i)=>`${String(i+1).padStart(4,' ')} | ${l}`).join('\n');
+    };
+    const _pre = (title, color, content) => `
+      <div style="margin-bottom:16px;">
+        <div style="color:${color}; font-weight:600; font-size:13px; margin-bottom:6px;">${title}</div>
+        <pre style="background:#0f172a; padding:14px; border-radius:8px; font-size:12px; line-height:1.7; white-space:pre; overflow:auto; color:#cbd5e1; border:1px solid #334155; max-height:520px;">${_withLineNumbers(content)}</pre>
+      </div>`;
+
+    // Step 1: Topic selection prompt
+    const topicPrompt = `## 第一步：话题筛选与标题生成
+
+数据来源：
+- 每日热点数据库（trend 项目）：${sources.length ? sources.join(', ') : '全部平台'}
+- 热点总量：${ph('运行时：今日热点条数')}
+- 关键词过滤：${filterKw || '（不限）'}
+- 排除关键词：${excludeKw || '（不限）'}
+
+账号匹配参数：
+- 领域：${domain}
+- 人设：${persona}
+- 受众：${audience}
+- 调性关键词：${keywords}
+
+匹配逻辑：
+1. 从热点数据库加载今日所有热点
+2. 按关键词过滤 + 排除
+3. 去重
+4. 为账号【${acc.name || acc.id}】打分排序：
+   - 热点 rank 越高，基础分越高（top1=14.5, top10=10）
+   - 标题命中账号领域/关键词 → +10分/词
+   - 主流平台（微博/百度/头条/知乎/澎湃）→ +3分
+5. 取 Top ${hotCount} 个热点标题 + ${selfCount} 个自主选题
+
+${mode === 'manual' ? `模式：人工确认
+→ 生成 🔥${hotCount} 热点 + ✨${selfCount} 自主选题
+→ 发到飞书群等待回复选择（如 A1,A4）
+→ 选定后进入内容生成` : `模式：自动
+→ 自动选择 Top ${autoCount} 个话题
+→ 直接进入内容生成
+→ 生成完成后发飞书链接待确认推送`}`;
+
+    // Step 2: Article generation prompt (same as Jobs flow)
+    const articlePrompt = `## 第二步：文章内容生成（与 Jobs 页面流程一致）
+
+你是一位${platform}内容创作者。
+
+## 账号定位
+- 领域：${domain}
+- 人设：${persona}
+- 受众：${audience}
+- 语气：${tone}
+- 调性关键词：${keywords}
+- 风格参考：${reference}
+- 段落建议：${secCount}
+- 字数建议：${wcMin} ~ ${wcMax}
+
+## 额外要求
+${extraInst}
+
+## 任务
+请根据以下热点主题，创作一篇高质量${platform}文章。
+
+主题/关键词：${ph('自动选题匹配到的热点标题')}
+热点来源：${ph('平台名称，如 百度热搜/微博')}
+原始链接：${ph('热点原始URL（如有）')}
+搜索补充资料：${ph('搜索引擎返回的背景信息（待接入MCP）')}
+
+要求：
+1. 标题要有吸引力和点击欲
+2. 内容有深度、有观点、有价值
+3. 结构清晰，段落分明
+4. 符合${platform}平台的内容规范和用户阅读习惯
+
+直接输出标题和正文。`;
+
+    // Step 3: Image prompts
+    const coverPromptText = `## 第三步A：封面图生成
+
+文章标题：${ph('第二步生成的文章标题')}
+文章摘要：${ph('文章核心观点概要')}
+
+基础要求（已内置）：
+- 基于文章语义，视觉吸引力强
+- 适合${platform}信息流展示
+- ${acc.platform === 'xhs' ? '3:4竖版比例' : '16:9横版比例'}
+
+额外风格要求：${coverStyle}`;
+
+    const inlinePromptText = `## 第三步B：文中插图生成（共 ${img.inline_count ?? 2} 张）
+
+所在段落标题：${ph('该段落的小标题')}
+段落核心内容：${ph('该段落的语义摘要，由AI根据上下文提炼')}
+文章整体主题：${ph('文章标题')}
+
+基础要求（已内置）：
+- 与段落内容语义强相关
+- 视觉吸引力强，构图美观
+
+额外风格要求：${inlineStyle}`;
+
+    const atTitlePrompt = `为以下热点主题生成文章标题。
+
+热点主题：${ph('自动选题匹配到的热点标题')}
+热点来源：${ph('平台名称')}
+
+## 账号定位
+- 领域：${domain}
+- 人设：${persona}
+- 受众：${audience}
+
+## 标题风格要求
+${titleStyleDesc}
+
+## 热点融合策略
+${hotRatio}
+
+## 标题长度（字数建议）
+- 最短：${titleLenMin}
+- 最长：${titleLenMax}
+
+## 额外约束
+${titleExtra}
+
+请生成 3 个候选标题，每个标题换行输出。`;
+
+    box.innerHTML =
+        _pre('🎯 话题筛选与匹配', '#a78bfa', topicPrompt) +
+        _pre('🏷️ 标题生成 Prompt', '#f472b6', atTitlePrompt) +
+        _pre('📝 文章内容生成 Prompt', '#60a5fa', articlePrompt) +
+        _pre('🖼️ 封面图 Prompt', '#f59e0b', coverPromptText) +
+        _pre('🎨 文中插图 Prompt（每张）', '#4ade80', inlinePromptText);
+}
+
+// Populate autotopic debug account selector when loading autotopic tab
+function refreshAutotopicDebugAccounts() {
+    const sel = document.getElementById('at_debug_account');
+    if (!sel) return;
+    const opts = accountsCache.map(a => `<option value="${a.id}">${a.name} (${({wechat_mp:'公众号',xhs:'小红书'})[a.platform]||a.platform})</option>`).join('');
+    sel.innerHTML = '<option value="">(选择账号)</option>' + opts;
+}
+
+// ==================== Stats ====================
+async function loadAccountsForStats() {
+    const res = await fetch(API + '/accounts');
+    const data = await res.json();
+    const sel = document.getElementById('stats_account');
+    if (!sel) return;
+    const accs = (data.accounts || []).filter(a => a.platform === 'wechat_mp');
+    sel.innerHTML = '<option value="">（使用全局配置）</option>' + accs.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+}
+
+async function loadStats() {
+    const accountId = document.getElementById('stats_account')?.value || '';
+    const summary = document.getElementById('stats-summary');
+    const list = document.getElementById('stats-list');
+    summary.innerHTML = '<div style="color:#94a3b8;">加载中...</div>';
+    list.innerHTML = '';
+
+    try {
+        const res = await fetch(API + `/stats/wechat?account_id=${encodeURIComponent(accountId)}`);
+        const data = await res.json();
+        if (!data.success) {
+            summary.innerHTML = `<div style="color:#f87171; padding:12px;">${data.error}</div>`;
+            return;
+        }
+        summary.innerHTML = `
+            <div class="card stat-card" style="flex:1;"><div class="stat-num">${data.total_count}</div><div class="stat-label">已发布文章总数</div></div>
+            <div class="card stat-card" style="flex:1;"><div class="stat-num">${data.articles.length}</div><div class="stat-label">最近展示</div></div>
+        `;
+        list.innerHTML = data.articles.map(a => {
+            const date = a.update_time ? new Date(a.update_time * 1000).toLocaleString('zh-CN') : '';
+            return `<div class="draft-item">
+                <div style="flex:1;">
+                    <div style="font-weight:600;">${a.title}</div>
+                    ${a.digest ? `<div style="color:#64748b; font-size:12px; margin-top:4px;">${a.digest}</div>` : ''}
+                </div>
+                <span style="color:#64748b; font-size:12px; white-space:nowrap; margin:0 12px;">${date}</span>
+                ${a.url ? `<a href="${a.url}" target="_blank" class="btn btn-secondary btn-sm">查看</a>` : ''}
+            </div>`;
+        }).join('') || '<div style="color:#94a3b8; padding:12px;">暂无已发布文章</div>';
+    } catch(e) {
+        summary.innerHTML = `<div style="color:#f87171;">${e.message}</div>`;
+    }
+}
+
+// ==================== Init ====================
+(async function init() {
+    const res = await fetch(API + '/themes');
+    window._allThemes = await res.json();
+    loadThemes();
+    loadAccounts();
+    loadDrafts();
+    loadWriters();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "accounts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "platform", "name"],
+        "properties": {
+          "id": {"type": "string"},
+          "platform": {"type": "string", "enum": ["wechat_mp", "xhs"]},
+          "name": {"type": "string"},
+          "enabled": {"type": "boolean"},
+          "credentials": {"type": "object"},
+          "profile": {"type": "object"}
+        }
+      }
+    }
+  }
+}
