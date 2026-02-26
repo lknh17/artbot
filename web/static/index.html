@@ -1457,13 +1457,16 @@ async function previewLayout() {
     iframe.style.cssText = 'width:100%; min-height:600px; border:none;';
     box.innerHTML = '';
     box.appendChild(iframe);
-    iframe.contentDocument.open();
-    iframe.contentDocument.write(html);
-    iframe.contentDocument.close();
+    try {
+        iframe.contentDocument.open();
+        iframe.contentDocument.write(html);
+        iframe.contentDocument.close();
         setTimeout(() => {
             try { iframe.style.height = iframe.contentDocument.body.scrollHeight + 40 + 'px'; } catch(e) {}
         }, 300);
-    } catch(e) { box.innerHTML = `<div style="padding:20px; color:#f87171;">预览加载失败: ${e.message}</div>`; }
+    } catch(e) {
+        box.innerHTML = `<div style="padding:20px; color:#f87171;">预览加载失败: ${e.message}</div>`;
+    }
 }
 
 // ==================== Autotopic ====================
