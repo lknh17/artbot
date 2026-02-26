@@ -38,18 +38,24 @@ def load_account(account_id: str) -> dict:
     return acc
 
 
-def _load_writing_style_articles(style_id: str) -> list:
-    """Load reference articles for a writing style"""
+def _load_writing_style(style_id: str) -> dict:
+    """Load a writing style by id, returns dict with 'description' and/or 'articles'"""
     styles_file = os.path.join(ARTBOT_DIR, "config", "writing_styles.json")
     if not os.path.exists(styles_file):
-        return []
+        return {}
     try:
         with open(styles_file) as f:
             data = json.load(f)
         ws = next((s for s in data.get("styles", []) if s.get("id") == style_id), None)
-        return ws.get("articles", []) if ws else []
+        return ws or {}
     except Exception:
-        return []
+        return {}
+
+
+def _load_writing_style_articles(style_id: str) -> list:
+    """Load reference articles for a writing style (legacy compat)"""
+    ws = _load_writing_style(style_id)
+    return ws.get("articles", [])
 
 
 HOTSPOT_RATIO_DESC = {
@@ -159,14 +165,20 @@ def build_article_prompt(account: dict, keyword: str, extra_prompt: str = "",
 5. 最后一段可以是总结/感悟/呼吁
 {f'6. {extra_inst}' if extra_inst else ''}"""
 
-    # Append reference articles if a writing style is selected
+    # Append style description or reference articles
     if reference:
-        ref_articles = _load_writing_style_articles(reference)
-        if ref_articles:
+        ws = _load_writing_style(reference)
+        style_desc_text = ws.get("description", "")
+        ref_articles = ws.get("articles", [])
+        if style_desc_text:
+            prompt += "\n\n## 写作风格指南\n请严格按照以下风格要求来写作：\n\n"
+            prompt += style_desc_text[:5000]  # Limit length
+            prompt += "\n"
+        elif ref_articles:
             prompt += "\n\n## 风格参考（仅参考语言风格和文章结构，不要抄袭内容）\n"
             prompt += "以下是该风格的参考文章，请学习其语言特点、行文节奏、段落结构和表达方式：\n\n"
-            for i, art in enumerate(ref_articles[:5], 1):  # Max 5 articles
-                snippet = art[:1500] if len(art) > 1500 else art  # Truncate long articles
+            for i, art in enumerate(ref_articles[:5], 1):
+                snippet = art[:1500] if len(art) > 1500 else art
                 prompt += f"--- 参考文章 {i} ---\n{snippet}\n\n"
             prompt += "⚠️ 注意：仅参考上述文章的写作风格（语气、节奏、结构），内容必须围绕给定主题原创。\n"
 

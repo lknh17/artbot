@@ -380,9 +380,13 @@ header p { color: #94a3b8; margin-top: 8px; font-size: 14px; }
         <div class="card">
             <h3>✍️ 写作风格模板</h3>
             <p style="color:#94a3b8; font-size:13px; margin-bottom:16px;">
-                管理可复用的写作风格。每个风格包含若干篇参考文章，生成时 AI 会参考其<strong>语言风格和文章结构</strong>（不抄内容）。
+                管理可复用的写作风格。每个风格包含一段<strong>风格描述</strong>，生成文章时 AI 会参考此描述来决定语气、结构和表达方式。
                 在 Profiles 页面为账号选择风格即可启用。
             </p>
+            <div style="margin-bottom:12px;">
+                <label style="color:#94a3b8; font-size:12px;">快速导入预设：</label>
+                <button class="btn btn-secondary btn-sm" onclick="importPresetStyle('dan-koe')" style="margin-left:8px;">📥 Dan Koe 风格</button>
+            </div>
             <div id="styles-list"></div>
             <button class="btn btn-secondary btn-sm" onclick="addWritingStyle()" style="margin-top:12px;">＋ 新增风格</button>
         </div>
@@ -819,30 +823,26 @@ function renderStylesList() {
     const box = document.getElementById('styles-list');
     if (!box) return;
     if (!writingStylesCache.length) {
-        box.innerHTML = '<div style="color:#64748b; padding:12px;">暂无风格模板。点击下方按钮添加。</div>';
+        box.innerHTML = '<div style="color:#64748b; padding:12px;">暂无风格模板。点击下方按钮添加，或导入预设。</div>';
         return;
     }
     box.innerHTML = writingStylesCache.map((ws, i) => {
-        const artCount = ws.articles?.length || 0;
         return `<div class="card" style="background:#0f172a; margin-bottom:12px;">
             <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
-                <input value="${ws.name||''}" placeholder="风格名称（如：半佛仙人风）"
+                <input value="${ws.name||''}" placeholder="风格名称（如：Dan Koe 风格）"
                     oninput="writingStylesCache[${i}].name=this.value"
                     style="flex:1; font-weight:600; font-size:15px;">
-                <span style="color:#64748b; font-size:12px; white-space:nowrap;">${artCount} 篇参考</span>
                 <button class="btn btn-secondary btn-sm" onclick="removeWritingStyle(${i})" style="color:#ef4444;">✕ 删除</button>
             </div>
-            <div style="display:flex; gap:16px;">
-                <div style="flex:1;">
-                    <label style="color:#94a3b8; font-size:12px; margin-bottom:6px; display:block;">参考文章（多篇用 <code style="color:#f59e0b;">{{----------}}</code> 分隔）</label>
-                    <textarea rows="10" style="width:100%; font-size:13px; line-height:1.6;"
-                        oninput="updateStyleArticles(${i}, this.value)"
-                        placeholder="在此粘贴参考文章...&#10;&#10;多篇文章之间用 {{----------}} 分隔&#10;&#10;示例：&#10;第一篇文章正文内容...&#10;&#10;{{----------}}&#10;&#10;第二篇文章正文内容..."
-                    >${(ws.articles||[]).join('\n\n{{----------}}\n\n')}</textarea>
-                </div>
+            <div style="flex:1;">
+                <label style="color:#94a3b8; font-size:12px; margin-bottom:6px; display:block;">风格描述（生成文章时 AI 会参考此描述）</label>
+                <textarea rows="12" style="width:100%; font-size:13px; line-height:1.6;"
+                    oninput="writingStylesCache[${i}].description=this.value"
+                    placeholder="描述这个风格的写作特点、文章结构、语气要求、标题公式等...&#10;&#10;AI 生成文章时会参考此描述来决定语气、结构和表达方式。"
+                >${ws.description||''}</textarea>
             </div>
             <div style="margin-top:8px; display:flex; justify-content:flex-end;">
-                <button class="btn btn-primary btn-sm" onclick="saveWritingStyles()">💾 保存此风格</button>
+                <button class="btn btn-primary btn-sm" onclick="saveWritingStyles()">💾 保存</button>
             </div>
         </div>`;
     }).join('');
@@ -863,6 +863,23 @@ function removeWritingStyle(i) {
 
 function updateStyleArticles(i, raw) {
     writingStylesCache[i].articles = raw.split('{{----------}}').map(s => s.trim()).filter(Boolean);
+}
+
+async function importPresetStyle(presetId) {
+    const res = await fetch(API + '/writing_style_preset/' + presetId);
+    if (!res.ok) { showToast('预设加载失败 ❌'); return; }
+    const preset = await res.json();
+    // Check if already exists
+    const existing = writingStylesCache.findIndex(s => s.id === preset.id);
+    if (existing >= 0) {
+        if (!confirm('已存在同名风格，是否覆盖？')) return;
+        writingStylesCache[existing] = preset;
+    } else {
+        writingStylesCache.push(preset);
+    }
+    await saveWritingStyles();
+    renderStylesList();
+    showToast('已导入「' + preset.name + '」✅');
 }
 
 // ==================== Accounts ====================

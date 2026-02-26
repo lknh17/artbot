@@ -1139,6 +1139,39 @@ def save_writing_styles():
     return jsonify({"success": True})
 
 
+@app.route("/api/writing_style_preset/<preset_id>", methods=["GET"])
+def get_writing_style_preset(preset_id):
+    """获取预设写作风格（从 writers/*.yaml 加载）"""
+    import yaml
+    preset_file = os.path.join(PROJECT_ROOT, "writers", f"{preset_id}.yaml")
+    if not os.path.exists(preset_file):
+        return jsonify({"error": "预设不存在"}), 404
+    with open(preset_file, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    # Build style object with description from writing_prompt
+    style = {
+        "id": preset_id,
+        "name": data.get("name", preset_id),
+        "description": data.get("writing_prompt", ""),
+    }
+    # Append title formulas and quote templates to description
+    extras = []
+    if data.get("title_formulas"):
+        extras.append("\n\n## 标题公式库\n")
+        for tf in data["title_formulas"]:
+            extras.append(f"### {tf.get('type', '')}")
+            extras.append(f"模板：{tf.get('template', '')}")
+            for ex in tf.get("examples", []):
+                extras.append(f"  - {ex}")
+    if data.get("quote_templates"):
+        extras.append("\n\n## 金句模板\n")
+        for q in data["quote_templates"]:
+            extras.append(f"- {q}")
+    if extras:
+        style["description"] += "\n".join(extras)
+    return jsonify(style)
+
+
 # -------------------------------------------------
 # Stats API — read from WeChat API
 # -------------------------------------------------
