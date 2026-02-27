@@ -466,17 +466,19 @@ def run_autotopic(config: dict = None, accounts: list = None) -> dict:
     include_kw = config.get("filter_keywords") or None
     exclude_kw = config.get("exclude_keywords") or None
     
-    # 1. Load hot data
+    # 1. Load hot data (optional)
     hot_items = load_today_hot(sources=sources if sources else None)
     if not hot_items:
-        return {"error": "今日暂无热点数据", "accounts": {}, "message": ""}
-    
-    # 2. Filter
-    hot_items = filter_hot(hot_items, include_kw, exclude_kw)
-    hot_items = deduplicate(hot_items)
-    
-    if not hot_items:
-        return {"error": "过滤后无匹配热点", "accounts": {}, "message": ""}
+        # Allow bank-only mode when trend DB is empty/unavailable.
+        hot_items = []
+
+    # 2. Filter (only if we have hot items)
+    if hot_items:
+        hot_items = filter_hot(hot_items, include_kw, exclude_kw)
+        hot_items = deduplicate(hot_items)
+        # If filtering wipes out all hot items, still continue with bank-only.
+        if not hot_items:
+            hot_items = []
     
     # 3. For each enabled account, match topics
     enabled_accounts = [a for a in accounts if a.get("enabled", True)]
@@ -581,39 +583,41 @@ def run_autotopic(config: dict = None, accounts: list = None) -> dict:
     for idx, acc in enumerate(enabled_accounts):
         label = labels[idx] if idx < len(labels) else str(idx)
 
-        # 🔥 Hot candidates
-        matched = match_topics_for_account(hot_items, acc, count=max(1, hot_title_count) * 3)
-        # de-dup with recent topics
-        acc_hist = topic_history.get(acc.get("id", ""), {}) if isinstance(topic_history, dict) else {}
-        recent_hot = set((acc_hist.get("recent_hot") or [])[:20]) if isinstance(acc_hist, dict) else set()
-        filtered = []
-        for it in matched:
-            if (it.get("title") or "").strip() in recent_hot:
-                continue
-            filtered.append(it)
-            if len(filtered) >= max(1, hot_title_count):
-                break
-        matched = filtered or matched[:max(1, hot_title_count)]
+        # 🔥 Hot candidates (optional)
         hot_candidates = []
-        for t in matched:
-            base = (t.get("title") or "").strip()
-            source_name = t.get("platform_name", t.get("platform", ""))
-            llm_titles = _llm_rewrite_titles(acc, base, source_platform=source_name)
-            suggested = llm_titles[0] if llm_titles else None
-            if not suggested:
-                # fallback to heuristic generator
-                suggested = (generate_title_candidates(acc, [t]) or [{}])[0].get("suggested_title") or base
-            hot_candidates.append({
-                "category": "hot",
-                "original_title": base,
-                "suggested_title": suggested,
-                "source": source_name,
-                "url": t.get("url", ""),
-                "rank": t.get("rank", None),
-                "platform": t.get("platform", ""),
-                "score": t.get("score", 0),
-                "search_suggested": _should_web_search_hot(t, acc),
-            })
+        if hot_items and hot_title_count > 0:
+            matched = match_topics_for_account(hot_items, acc, count=max(1, hot_title_count) * 3)
+            # de-dup with recent topics
+            acc_hist = topic_history.get(acc.get("id", ""), {}) if isinstance(topic_history, dict) else {}
+            recent_hot = set((acc_hist.get("recent_hot") or [])[:20]) if isinstance(acc_hist, dict) else set()
+            filtered = []
+            for it in matched:
+                if (it.get("title") or "").strip() in recent_hot:
+                    continue
+                filtered.append(it)
+                if len(filtered) >= max(1, hot_title_count):
+                    break
+            matched = filtered or matched[:max(1, hot_title_count)]
+
+            for t in matched:
+                base = (t.get("title") or "").strip()
+                source_name = t.get("platform_name", t.get("platform", ""))
+                llm_titles = _llm_rewrite_titles(acc, base, source_platform=source_name)
+                suggested = llm_titles[0] if llm_titles else None
+                if not suggested:
+                    # fallback to heuristic generator
+                    suggested = (generate_title_candidates(acc, [t]) or [{}])[0].get("suggested_title") or base
+                hot_candidates.append({
+                    "category": "hot",
+                    "original_title": base,
+                    "suggested_title": suggested,
+                    "source": source_name,
+                    "url": t.get("url", ""),
+                    "rank": t.get("rank", None),
+                    "platform": t.get("platform", ""),
+                    "score": t.get("score", 0),
+                    "search_suggested": _should_web_search_hot(t, acc),
+                })
 
         # 📚 Bank candidates (topic bank driven)
         bank_candidates = []
