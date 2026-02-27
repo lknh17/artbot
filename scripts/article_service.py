@@ -290,7 +290,10 @@ def create_generation_task(account_id: str, keyword: str, theme: str = None,
                            num_images: int = 2, extra_prompt: str = "",
                            push_to_draft: bool = False,
                            source: str = "manual",
-                           source_platform: str = "") -> dict:
+                           source_platform: str = "",
+                           hot_title: str = "",
+                           hot_url: str = "",
+                           do_web_search: bool = False) -> dict:
     """创建文章生成任务（统一入口）
 
     三条路径都调用此函数：
@@ -320,6 +323,12 @@ def create_generation_task(account_id: str, keyword: str, theme: str = None,
         "source_platform": source_platform,
         "status": "pending",
         "created_at": datetime.now().isoformat(),
+        "extra_prompt": extra_prompt,
+        # optional hotspot context (may be used to fetch concrete facts)
+        "hot_title": hot_title,
+        "hot_url": hot_url,
+        "hot_source": source_platform,
+        "do_web_search": bool(do_web_search),
         # Prompts
         "title_prompt": build_title_prompt(acc, keyword, source_platform),
         "article_prompt": build_article_prompt(acc, keyword, extra_prompt),
@@ -367,6 +376,32 @@ def execute_generation_task(task: dict) -> dict:
         acc = load_account(account_id)
         article_prompt = build_article_prompt(acc, keyword)
 
+    # Optional: enrich with hotspot/news context (only when task requests it)
+    search_meta = {}
+    if task.get("do_web_search") and task.get("hot_url"):
+        try:
+            from scripts.news_fetch import fetch_url_text
+            fr = fetch_url_text(task.get("hot_url"), max_chars=1200)
+            if fr.ok and fr.text:
+                # Rebuild prompt with search_context
+                acc2 = load_account(account_id)
+                search_context = f"热点参考（请只抽取事实细节，不要复述新闻）：\n- 标题：{task.get('hot_title','')}\n- 来源：{task.get('hot_source','')}\n- URL：{fr.url}\n- 摘要：{fr.text}"
+                article_prompt = build_article_prompt(acc2, keyword, extra_prompt=task.get("extra_prompt", ""), search_context=search_context)
+                search_meta = {
+                    "hot_title": task.get("hot_title", ""),
+                    "hot_source": task.get("hot_source", ""),
+                    "hot_url": fr.url,
+                    "fetch_ok": fr.ok,
+                    "status": fr.status,
+                    "content_type": fr.content_type,
+                    "snippet_len": len(fr.text),
+                    "fetched_at": fr.fetched_at,
+                }
+            else:
+                search_meta = {"hot_url": task.get("hot_url"), "fetch_ok": False, "error": fr.error}
+        except Exception as e:
+            search_meta = {"hot_url": task.get("hot_url"), "fetch_ok": False, "error": str(e)}
+
     raw = chat(article_prompt, model="moonshot-v1-32k", temperature=0.7, max_tokens=3000)
     m = _re.search(r'\{.*\}', raw, _re.DOTALL)
     if not m:
@@ -399,6 +434,12 @@ def execute_generation_task(task: dict) -> dict:
 
     try:
         cred = (acc.get("credentials") or {})
+        debug_extras = {}
+        if search_meta:
+            debug_extras["web_search"] = {
+                "enabled": True,
+                **search_meta,
+            }
         pip_result = execute_pipeline(
             title=title, digest=digest, subtitle=subtitle, sections=sections,
             cover_prompt=cover_prompt, theme=theme, push_draft=task.get("push_to_draft", False),
@@ -408,6 +449,7 @@ def execute_generation_task(task: dict) -> dict:
             output_dir_override=output_dir,
             wechat_appid=cred.get("appid"),
             wechat_secret=cred.get("secret"),
+            debug_extras=debug_extras or None,
         )
         task["status"] = "done"
         task["dirname"] = dirname
@@ -418,6 +460,33 @@ def execute_generation_task(task: dict) -> dict:
     except Exception as e:
         task["status"] = "error"
         task["error"] = str(e)
+
+    # Update history for de-dup/diversity controls
+    try:
+        hist_path = os.path.join(OUTPUT_DIR, "topic_history.json")
+        hist = {}
+        if os.path.exists(hist_path):
+            with open(hist_path, "r", encoding="utf-8") as f:
+                hist = json.load(f) or {}
+        acc_hist = hist.get(account_id) or {}
+        # recent keywords (suggested titles)
+        rk = acc_hist.get("recent_keywords") or []
+        rk = [x for x in rk if x and x != keyword]
+        rk.insert(0, keyword)
+        acc_hist["recent_keywords"] = rk[:30]
+        # recent hot titles
+        ht = (task.get("hot_title") or "").strip()
+        if ht:
+            rh = acc_hist.get("recent_hot") or []
+            rh = [x for x in rh if x and x != ht]
+            rh.insert(0, ht)
+            acc_hist["recent_hot"] = rh[:30]
+        acc_hist["updated_at"] = datetime.now().isoformat()
+        hist[account_id] = acc_hist
+        with open(hist_path, "w", encoding="utf-8") as f:
+            json.dump(hist, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
 
     _update_task_status(task)
     return task

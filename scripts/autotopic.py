@@ -240,6 +240,40 @@ def _title_hook_score(title: str, domain: str = "", hot_phrase: str = "") -> flo
     return score
 
 
+def _should_web_search_hot(item: dict, account: dict) -> bool:
+    """Heuristic: decide whether a hot topic is worth fetching details.
+
+    We only search a small subset to avoid overfitting to热点 and to control latency.
+    """
+    try:
+        title = (item.get("title") or "").strip()
+        url = (item.get("url") or "").strip()
+        rank = int(item.get("rank") or 99)
+        pid = item.get("platform") or ""
+        if not url:
+            return False
+        # only consider top ranks
+        if rank > 5:
+            return False
+        # keywords that benefit from concrete facts
+        kw = [
+            "通报", "回应", "事故", "爆炸", "起火", "致", "死亡", "受伤",
+            "裁员", "降薪", "停工", "欠薪",
+            "教育", "学校", "老师", "学生", "高考", "中考",
+            "医院", "医生", "手术", "药", "疫苗",
+            "房贷", "利率", "银行", "房地产",
+            "政策", "新规", "税", "补贴",
+        ]
+        if any(k in title for k in kw):
+            return True
+        # major platforms, very top rank: still worth
+        if pid in {"weibo", "baidu", "toutiao", "zhihu", "thepaper"} and rank <= 3:
+            return True
+        return False
+    except Exception:
+        return False
+
+
 def generate_title_candidates(account: dict, matched_topics: list) -> list:
     """为每个匹配话题生成“最终文章标题”候选（不是原热点标题复读）。
 
@@ -449,6 +483,15 @@ def run_autotopic(config: dict = None, accounts: list = None) -> dict:
     
     # 3. For each enabled account, match topics
     enabled_accounts = [a for a in accounts if a.get("enabled", True)]
+
+    # Recent topic history (avoid repeating same hot titles for an account)
+    try:
+        project_root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+        hist_path = os.path.join(project_root, "output", "topic_history.json")
+        with open(hist_path, "r", encoding="utf-8") as f:
+            topic_history = json.load(f)
+    except Exception:
+        topic_history = {}
     if not enabled_accounts:
         return {"error": "无启用的账号", "accounts": {}, "message": ""}
     
@@ -511,8 +554,18 @@ def run_autotopic(config: dict = None, accounts: list = None) -> dict:
         label = labels[idx] if idx < len(labels) else str(idx)
 
         # 🔥 Hot candidates
-        matched = match_topics_for_account(hot_items, acc, count=max(1, hot_title_count))
-        matched = matched[:max(1, hot_title_count)]
+        matched = match_topics_for_account(hot_items, acc, count=max(1, hot_title_count) * 3)
+        # de-dup with recent topics
+        acc_hist = topic_history.get(acc.get("id", ""), {}) if isinstance(topic_history, dict) else {}
+        recent_hot = set((acc_hist.get("recent_hot") or [])[:20]) if isinstance(acc_hist, dict) else set()
+        filtered = []
+        for it in matched:
+            if (it.get("title") or "").strip() in recent_hot:
+                continue
+            filtered.append(it)
+            if len(filtered) >= max(1, hot_title_count):
+                break
+        matched = filtered or matched[:max(1, hot_title_count)]
         hot_candidates = []
         for t in matched:
             base = (t.get("title") or "").strip()
@@ -528,7 +581,10 @@ def run_autotopic(config: dict = None, accounts: list = None) -> dict:
                 "suggested_title": suggested,
                 "source": source_name,
                 "url": t.get("url", ""),
+                "rank": t.get("rank", None),
+                "platform": t.get("platform", ""),
                 "score": t.get("score", 0),
+                "search_suggested": _should_web_search_hot(t, acc),
             })
 
         # ✨ Self candidates (no hot dependence)
@@ -699,6 +755,14 @@ def parse_selection(text: str, accounts: dict) -> list:
                 "platform": accounts[label]["platform"],
                 "title": c["suggested_title"],
                 "url": c.get("url", ""),
+                "original_title": c.get("original_title", ""),
+                "source": c.get("source", ""),
+                "search_suggested": bool(c.get("search_suggested")),
+                "rank": c.get("rank"),
+                "original_title": c.get("original_title", ""),
+                "source": c.get("source", ""),
+                "search_suggested": bool(c.get("search_suggested")),
+                "rank": c.get("rank"),
             })
     return result
 
