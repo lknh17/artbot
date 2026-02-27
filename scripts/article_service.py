@@ -135,7 +135,11 @@ def build_article_prompt(account: dict, keyword: str, extra_prompt: str = "",
 ## 爆款写法（情绪冲突型｜必须执行）
 - 开头 120 字内：直接给一个【具体场景】+【一句原话/对话】+【情绪爆点】（让读者立刻代入）
 - 文章必须有“冲突升级”节奏：误解 → 爆发 → 冷战/内耗 → 反思 → 破局
-- 多用短句、留白、反问；每段不超过 3 行
+- 节奏是短句+留白，但内容要“讲清楚”：
+  - 每个 section 至少 4 段 paragraphs（不要只写 2-3 句就结束）
+  - 每个 section 至少 1 段要有【具体细节/例子】（人物/时间/场景/动作）
+  - 允许一段稍长（80-120字）用于把逻辑讲透
+- 多用反问/对话/内心独白；每段不超过 3 行
 - 文章里至少出现 3 句可摘抄的“金句”，用 *斜体* 标出来（放在 paragraphs 里）
 - 禁止空话套话：不要“在快节奏时代/不难发现/越来越…”这种泛化句
 - 至少给 1 组可照抄的【话术模板】（用「」标出来）
@@ -214,10 +218,18 @@ def build_cover_prompt(account: dict, title: str, digest: str) -> str:
     ratio = "3:4竖版" if account.get("platform") == "xhs" else "16:9横版"
     extra = img.get("cover_prompt", "")
 
-    prompt = f"为文章生成封面图。标题：{title}。摘要：{digest}。"
-    prompt += f" 要求：基于文章语义，视觉吸引力强，适合{platform}信息流，{ratio}比例。"
+    # Keep cover prompt SHORT: Hunyuan has strict text length limits.
+    # Style is handled by style_prefix in image_gen, so avoid verbose重复描述.
+    core = (title or "").strip()
+    if len(core) > 26:
+        core = core[:26]
+    prompt = f"{platform}封面插画，主题：{core}，{ratio}，干净留白，主体明确，少字或无字。"
     if extra:
-        prompt += f" 风格：{extra}"
+        # Keep extra very short
+        extra2 = extra.strip()
+        if len(extra2) > 20:
+            extra2 = extra2[:20]
+        prompt += f" 风格：{extra2}"
     return prompt
 
 
