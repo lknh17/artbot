@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 
 TREND_DB_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))),
     "trend", "output", "news"
 )
 
