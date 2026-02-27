@@ -71,8 +71,8 @@ def generate_image(prompt: str, output_path: str, resolution="1024:1024", style_
     full_prompt = (style_prefix + " " + prompt).strip() if style_prefix else prompt
 
     # Clamp length to avoid provider limits (e.g. TextLengthExceed)
-    if len(full_prompt) > 180:
-        full_prompt = full_prompt[:180]
+    if len(full_prompt) > 120:
+        full_prompt = full_prompt[:120]
 
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
 

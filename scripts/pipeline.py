@@ -179,7 +179,7 @@ def execute_pipeline(
     if not cover_url:
         cover_url = _local_preview_url(cover.get("path", ""))
 
-    html = render_article(title, subtitle, sections, image_inserts, theme, cover_url=cover_url)
+    html = render_article(title, subtitle, sections, image_inserts, theme, cover_url=cover_url, include_cover_in_body=False)
     
     html_path = os.path.join(output_dir, "article.html")
     with open(html_path, "w") as f:

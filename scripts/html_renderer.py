@@ -224,7 +224,7 @@ def _placeholder_img(width=800, height=400, label="", primary="#4a6fa5"):
     return f"data:image/svg+xml;base64,{encoded}"
 
 
-def render_article(title: str, subtitle: str, sections: list, images: list = None, theme: str = "snow-cold", cover_url: str | None = None) -> str:
+def render_article(title: str, subtitle: str, sections: list, images: list = None, theme: str = "snow-cold", cover_url: str | None = None, include_cover_in_body: bool = False) -> str:
     """
     渲染完整文章HTML
     
@@ -294,8 +294,8 @@ def render_article(title: str, subtitle: str, sections: list, images: list = Non
         header += f'\n<hr style="border: none; height: 1px; background-color: rgba(0,0,0,0.08); margin: 30px 0;">'
         parts.append(_card(header, t))
 
-    # Optional cover image (for preview/JOBS; WeChat draft uses thumb_media_id separately)
-    if cover_url:
+    # Optional cover image (default off). WeChat draft uses thumb_media_id separately.
+    if include_cover_in_body and cover_url:
         parts.append(_image_block(cover_url, ""))
     
     # Sections

@@ -293,7 +293,8 @@ def create_generation_task(account_id: str, keyword: str, theme: str = None,
                            source_platform: str = "",
                            hot_title: str = "",
                            hot_url: str = "",
-                           do_web_search: bool = False) -> dict:
+                           do_web_search: bool = False,
+                           enqueue: bool = True) -> dict:
     """创建文章生成任务（统一入口）
 
     三条路径都调用此函数：
@@ -337,22 +338,22 @@ def create_generation_task(account_id: str, keyword: str, theme: str = None,
         "inline_count": img.get("inline_count", num_images),
     }
 
-    # Save task file
-    task_file = os.path.join(OUTPUT_DIR, "pending_tasks.json")
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    # Optionally enqueue to task queue (for async processing by queue_worker)
+    if enqueue:
+        task_file = os.path.join(OUTPUT_DIR, "pending_tasks.json")
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    # Append to task queue
-    tasks = []
-    if os.path.exists(task_file):
-        try:
-            with open(task_file) as f:
-                tasks = json.load(f)
-        except Exception:
-            tasks = []
+        tasks = []
+        if os.path.exists(task_file):
+            try:
+                with open(task_file, encoding="utf-8") as f:
+                    tasks = json.load(f)
+            except Exception:
+                tasks = []
 
-    tasks.append(task)
-    with open(task_file, "w") as f:
-        json.dump(tasks, f, ensure_ascii=False, indent=2)
+        tasks.append(task)
+        with open(task_file, "w", encoding="utf-8") as f:
+            json.dump(tasks, f, ensure_ascii=False, indent=2)
 
     return task
 
