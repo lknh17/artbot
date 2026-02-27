@@ -82,11 +82,16 @@ def execute_pipeline(
 
         extra = (inline_prompt_extra or "").strip()
         for i, si in enumerate(picks, 1):
-            sec = sections[min(si, len(sections)-1)] if sections else {}
-            sec_title = (sec.get("title") or "").strip()
-            # Keep prompts short: Hunyuan rejects overly-long text.
-            # Avoid pasting paragraph text; use title-like semantic keywords instead.
-            base_topic = sec_title or title
+            if si == -1:
+                sec = {}
+                sec_title = ""
+                base_topic = title
+            else:
+                sec = sections[min(si, len(sections)-1)] if sections else {}
+                sec_title = (sec.get("title") or "").strip()
+                # Keep prompts short: Hunyuan rejects overly-long text.
+                # Avoid pasting paragraph text; use title-like semantic keywords instead.
+                base_topic = sec_title or title
             base_prompt = f"{base_topic}，扁平插画，主体明确，留白干净，视觉吸引力强"
 
             # Avoid duplicating style prefix: style_prefix will be applied in image_gen.
