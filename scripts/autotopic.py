@@ -53,16 +53,34 @@ def load_today_hot(date: str = None, sources: list = None) -> list:
             db_path = os.path.join(TREND_DB_DIR, f"{latest}.db")
         if not os.path.exists(db_path):
             return []
-    
+
+    # normalize sources (aliases)
+    src = None
+    if sources:
+        src = []
+        for s in sources:
+            s = (s or "").strip()
+            if not s:
+                continue
+            src.append(s)
+            if s == "bilibili":
+                src.append("bilibili-hot-search")
+        # de-dup keep order
+        seen = set(); _u=[]
+        for s in src:
+            if s not in seen:
+                seen.add(s); _u.append(s)
+        src = _u
+
     db = sqlite3.connect(db_path)
     rows = db.execute(
         "SELECT title, platform_id, rank, url FROM news_items ORDER BY platform_id, rank"
     ).fetchall()
     db.close()
-    
+
     items = []
     for title, pid, rank, url in rows:
-        if sources and pid not in sources:
+        if src and pid not in src:
             continue
         items.append({
             "title": title,
@@ -71,6 +89,11 @@ def load_today_hot(date: str = None, sources: list = None) -> list:
             "rank": rank,
             "url": url or "",
         })
+
+    # If user configured sources but it filtered out everything (misconfig), fallback to all.
+    if sources and not items:
+        return load_today_hot(date=date, sources=None)
+
     return items
 
 
@@ -458,7 +481,6 @@ def run_autotopic(config: dict = None, accounts: list = None) -> dict:
     total_title_count = int(config.get("title_count", 10) or 10)
     hot_mix_count = int(config.get("hot_mix_count", 3) or 3)
     hot_title_count = max(0, min(hot_mix_count, total_title_count))
-    bank_title_count = max(0, total_title_count - hot_title_count)
 
     # In auto mode, how many articles to auto-generate/push per account
     auto_count = int(config.get("auto_count", 3) or 3)
@@ -619,23 +641,26 @@ def run_autotopic(config: dict = None, accounts: list = None) -> dict:
                     "search_suggested": _should_web_search_hot(t, acc),
                 })
 
-        # 📚 Bank candidates (topic bank driven)
-        bank_candidates = []
-        bank_titles = _llm_bank_titles(acc, bank_title_count)
-        for bt in bank_titles:
-            bank_candidates.append({
-                "category": "bank",
-                "original_title": "",
-                "suggested_title": bt,
-                "source": "topic_bank",
-                "url": "",
-                "rank": None,
-                "platform": "",
-                "score": 0,
-                "search_suggested": False,
-            })
+        # Unified candidates: start with hot (limited), fill remaining with bank titles
+        hot_candidates = hot_candidates[:hot_title_count]
 
-        # Unified candidates: mostly bank + a few hot
+        need_bank = max(0, total_title_count - len(hot_candidates))
+        bank_candidates = []
+        if need_bank > 0:
+            bank_titles = _llm_bank_titles(acc, need_bank)
+            for bt in bank_titles:
+                bank_candidates.append({
+                    "category": "bank",
+                    "original_title": "",
+                    "suggested_title": bt,
+                    "source": "topic_bank",
+                    "url": "",
+                    "rank": None,
+                    "platform": "",
+                    "score": 0,
+                    "search_suggested": False,
+                })
+
         candidates = (bank_candidates + hot_candidates)[:total_title_count]
 
         result_accounts[label] = {
