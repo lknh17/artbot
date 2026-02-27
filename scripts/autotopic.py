@@ -712,7 +712,10 @@ def format_manual_message(accounts: dict) -> str:
                 source = f"（{c['source']}）" if c.get("source") and c.get("source") not in ("topic_bank", "self") else ""
                 ref = f"\n      参考：{c['original_title']}" if c.get("original_title") else ""
                 hint = " 🔎" if c.get("search_suggested") else ""
-                lines.append(f"  {label}{i}. {tag}{c['suggested_title']}{source}{hint}{ref}")
+                hot_mark = "【热点结合：无】"
+                if c.get("category") == "hot" and c.get("original_title"):
+                    hot_mark = f"【热点结合：{c.get('source','')}｜{c.get('original_title','')}】"
+                lines.append(f"  {label}{i}. {tag}{c['suggested_title']}{source} {hot_mark}{hint}{ref}")
         else:
             lines.append("  （暂无候选）")
 

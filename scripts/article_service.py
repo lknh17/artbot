@@ -378,29 +378,65 @@ def execute_generation_task(task: dict) -> dict:
 
     # Optional: enrich with hotspot/news context (only when task requests it)
     search_meta = {}
-    if task.get("do_web_search") and task.get("hot_url"):
+    if task.get("do_web_search") and (task.get("hot_title") or task.get("hot_url")):
         try:
-            from scripts.news_fetch import fetch_url_text
-            fr = fetch_url_text(task.get("hot_url"), max_chars=1200)
-            if fr.ok and fr.text:
-                # Rebuild prompt with search_context
+            # Prefer Tavily (richer search across sources)
+            from scripts.tavily_search import tavily_search
+            tr = tavily_search(task.get("hot_title") or task.get("hot_url"), max_results=5)
+            if tr.ok and tr.results:
+                lines = []
+                for it in tr.results[:5]:
+                    lines.append(f"- {it.get('title','')}\n  {it.get('url','')}\n  摘要：{(it.get('content','') or '')[:220]}")
+                search_context = "热点扩展检索结果（只抽取事实细节/数据/时间线，不要复述新闻）：\n" + "\n".join(lines)
                 acc2 = load_account(account_id)
-                search_context = f"热点参考（请只抽取事实细节，不要复述新闻）：\n- 标题：{task.get('hot_title','')}\n- 来源：{task.get('hot_source','')}\n- URL：{fr.url}\n- 摘要：{fr.text}"
-                article_prompt = build_article_prompt(acc2, keyword, extra_prompt=task.get("extra_prompt", ""), search_context=search_context)
+                article_prompt = build_article_prompt(
+                    acc2, keyword,
+                    extra_prompt=task.get("extra_prompt", ""),
+                    search_context=search_context,
+                )
                 search_meta = {
+                    "engine": "tavily",
+                    "query": tr.query,
+                    "ok": True,
+                    "results": tr.results,
+                    "searched_at": tr.searched_at,
                     "hot_title": task.get("hot_title", ""),
                     "hot_source": task.get("hot_source", ""),
-                    "hot_url": fr.url,
-                    "fetch_ok": fr.ok,
-                    "status": fr.status,
-                    "content_type": fr.content_type,
-                    "snippet_len": len(fr.text),
-                    "fetched_at": fr.fetched_at,
+                    "hot_url": task.get("hot_url", ""),
                 }
             else:
-                search_meta = {"hot_url": task.get("hot_url"), "fetch_ok": False, "error": fr.error}
+                # Fallback: fetch_url_text when Tavily is not configured
+                from scripts.news_fetch import fetch_url_text
+                fr = fetch_url_text(task.get("hot_url"), max_chars=1200)
+                if fr.ok and fr.text:
+                    acc2 = load_account(account_id)
+                    search_context = f"热点参考（请只抽取事实细节，不要复述新闻）：\n- 标题：{task.get('hot_title','')}\n- 来源：{task.get('hot_source','')}\n- URL：{fr.url}\n- 摘要：{fr.text}"
+                    article_prompt = build_article_prompt(acc2, keyword, extra_prompt=task.get("extra_prompt", ""), search_context=search_context)
+                    search_meta = {
+                        "engine": "fetch_url_text",
+                        "hot_title": task.get("hot_title", ""),
+                        "hot_source": task.get("hot_source", ""),
+                        "hot_url": fr.url,
+                        "fetch_ok": fr.ok,
+                        "status": fr.status,
+                        "content_type": fr.content_type,
+                        "snippet_len": len(fr.text),
+                        "fetched_at": fr.fetched_at,
+                        "tavily_ok": False,
+                        "tavily_error": tr.error,
+                    }
+                else:
+                    search_meta = {
+                        "engine": "tavily",
+                        "query": tr.query,
+                        "ok": False,
+                        "error": tr.error,
+                        "fallback_ok": False,
+                        "hot_url": task.get("hot_url"),
+                        "fetch_error": fr.error,
+                    }
         except Exception as e:
-            search_meta = {"hot_url": task.get("hot_url"), "fetch_ok": False, "error": str(e)}
+            search_meta = {"ok": False, "error": str(e), "hot_url": task.get("hot_url"), "hot_title": task.get("hot_title", "")}
 
     raw = chat(article_prompt, model="moonshot-v1-32k", temperature=0.7, max_tokens=3000)
     m = _re.search(r'\{.*\}', raw, _re.DOTALL)
