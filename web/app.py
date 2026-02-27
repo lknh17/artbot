@@ -1079,6 +1079,9 @@ def autotopic_generate():
                         keyword=c["suggested_title"],
                         source="autotopic_auto",
                         source_platform=c.get("source", ""),
+                        hot_title=c.get("original_title", ""),
+                        hot_url=c.get("url", ""),
+                        do_web_search=bool(c.get("search_suggested")),
                     )
                     result = execute_generation_task(task)
                     results.append(result)
@@ -1096,6 +1099,9 @@ def autotopic_generate():
                     keyword=sel["title"],
                     source="autotopic_manual",
                     source_platform=sel.get("platform", ""),
+                    hot_title=sel.get("original_title", ""),
+                    hot_url=sel.get("url", ""),
+                    do_web_search=bool(sel.get("search_suggested")),
                 )
                 result = execute_generation_task(task)
                 results.append(result)

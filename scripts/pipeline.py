@@ -31,6 +31,7 @@ def execute_pipeline(
     output_dir_override: str | None = None,
     wechat_appid: str | None = None,
     wechat_secret: str | None = None,
+    debug_extras: dict | None = None,
 ) -> dict:
     """
     执行文章发布流水线（生图→上传→排版→推送）
@@ -112,6 +113,9 @@ def execute_pipeline(
         "inline_prompts": inline_prompts,
         "created_at": datetime.now().isoformat(),
     }
+    if isinstance(debug_extras, dict) and debug_extras:
+        # Shallow-merge, caller controlled.
+        debug.update(debug_extras)
     try:
         with open(debug_path, "w", encoding="utf-8") as f:
             json.dump(debug, f, ensure_ascii=False, indent=2)
