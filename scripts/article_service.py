@@ -122,17 +122,36 @@ def build_article_prompt(account: dict, keyword: str, extra_prompt: str = "",
     reference = style.get("reference", "")
     extra_inst = style.get("extra_instructions", "")
 
-    # --- Emotional-conflict (爆款情绪冲突型) instructions ---
-    # Enable if tone explicitly asks for it OR account sets writing_style.article_mode.
+    # --- Writing mode switch ---
     article_mode = (style.get("article_mode") or "").strip().lower()
-    tone_flag = "情绪" in (tone or "") or "冲突" in (tone or "")
-    enable_emotion_conflict = article_mode in ("emotion_conflict", "emotional_conflict", "conflict") or tone_flag
 
-    emotion_conflict_rules = ""
-    if enable_emotion_conflict:
-        emotion_conflict_rules = f"""
+    tone_flag_conflict = ("情绪" in (tone or "")) or ("冲突" in (tone or ""))
+    enable_emotion_conflict = article_mode in ("emotion_conflict", "emotional_conflict", "conflict") or tone_flag_conflict
 
-## 爆款写法（情绪冲突型｜必须执行）
+    tone_flag_healing = ("疗愈" in (tone or "")) or ("松一口气" in (tone or ""))
+    enable_healing = article_mode in ("healing", "healing_emotion", "emotion_healing", "soothing") or tone_flag_healing
+
+    emotion_rules = ""
+    if enable_healing:
+        emotion_rules = f"""
+
+## 写法（情绪疗愈型｜必须执行）
+- 目标：让读者“被看见→松一口气→拿到可执行边界”。不要鸡汤，不要说教。
+- 开头 120 字：用一个真实到刺痛的职场瞬间（夜里、屏幕光、消息提示音、心里那句“完了”），立刻点出读者的感受。
+- 情绪优先：先准确命名情绪（委屈/焦虑/内耗/害怕背锅/不被认可），再解释原因（权责不清=不确定性）。
+- 内容必须有“工具感”，但表达要温和：
+  - 文章至少 4 个模块：被看见 → 解释真相 → 给框架 → 给话术/行动
+  - 给出一个固定框架：澄清三问 + 风险三线（红/黄/绿）
+  - 至少 2 组可照抄话术，用「」标：A) 向上澄清；B) 向下同步团队
+  - 至少 3 条可执行建议，用 1/2/3 输出
+- 节奏：短句+留白可以，但每个模块至少 4 段 paragraphs；允许 1 段 80-140字把逻辑讲透。
+- 至少 3 句 *斜体金句*（更像真话，不像格言）
+- 结尾必须包含：一段安抚 + 一个 3 分钟小练习 + 一个问题引导评论
+"""
+    elif enable_emotion_conflict:
+        emotion_rules = f"""
+
+## 写法（情绪冲突型｜必须执行）
 - 开头 120 字内：直接给一个【具体场景】+【一句原话/对话】+【情绪爆点】（让读者立刻代入）
 - 文章必须有“冲突升级”节奏：误解 → 爆发 → 冷战/内耗 → 反思 → 破局
 - 节奏是短句+留白，但内容要“讲清楚、有含量”，故事只是“引子/载体”，不能代替观点：
@@ -167,7 +186,7 @@ def build_article_prompt(account: dict, keyword: str, extra_prompt: str = "",
 主题/关键词：{keyword}
 {f'背景资料：{search_context}' if search_context else ''}
 {f'额外要求：{extra_prompt}' if extra_prompt else ''}
-{emotion_conflict_rules}
+{emotion_rules}
 
 ## 输出格式要求
 请严格按以下 JSON 格式输出（不要输出其他内容）：
