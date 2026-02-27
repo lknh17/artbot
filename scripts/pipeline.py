@@ -92,7 +92,8 @@ def execute_pipeline(
                 # Keep prompts short: Hunyuan rejects overly-long text.
                 # Avoid pasting paragraph text; use title-like semantic keywords instead.
                 base_topic = sec_title or title
-            base_prompt = f"{base_topic}，扁平插画，主体明确，留白干净，视觉吸引力强"
+            # Prefer premium cinematic illustration over flat cartoon.
+            base_prompt = f"{base_topic}，轻写实插画，电影剧照感，真实材质与光影，主体明确，留白干净"
 
             # Avoid duplicating style prefix: style_prefix will be applied in image_gen.
             full = base_prompt
