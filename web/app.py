@@ -1156,6 +1156,7 @@ def autotopic_generate():
                     hot_title=sel.get("original_title", ""),
                     hot_url=sel.get("url", ""),
                     do_web_search=bool(sel.get("search_suggested")),
+                    push_to_draft=(sel.get("platform") == "wechat_mp"),
                 )
                 result = execute_generation_task(task)
                 results.append(result)
