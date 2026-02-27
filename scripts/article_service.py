@@ -122,6 +122,26 @@ def build_article_prompt(account: dict, keyword: str, extra_prompt: str = "",
     reference = style.get("reference", "")
     extra_inst = style.get("extra_instructions", "")
 
+    # --- Emotional-conflict (爆款情绪冲突型) instructions ---
+    # Enable if tone explicitly asks for it OR account sets writing_style.article_mode.
+    article_mode = (style.get("article_mode") or "").strip().lower()
+    tone_flag = "情绪" in (tone or "") or "冲突" in (tone or "")
+    enable_emotion_conflict = article_mode in ("emotion_conflict", "emotional_conflict", "conflict") or tone_flag
+
+    emotion_conflict_rules = ""
+    if enable_emotion_conflict:
+        emotion_conflict_rules = f"""
+
+## 爆款写法（情绪冲突型｜必须执行）
+- 开头 120 字内：直接给一个【具体场景】+【一句原话/对话】+【情绪爆点】（让读者立刻代入）
+- 文章必须有“冲突升级”节奏：误解 → 爆发 → 冷战/内耗 → 反思 → 破局
+- 多用短句、留白、反问；每段不超过 3 行
+- 文章里至少出现 3 句可摘抄的“金句”，用 *斜体* 标出来（放在 paragraphs 里）
+- 禁止空话套话：不要“在快节奏时代/不难发现/越来越…”这种泛化句
+- 至少给 1 组可照抄的【话术模板】（用「」标出来）
+- 结尾给一个“今晚就能做”的小动作（30秒-3分钟），并用一个问题引导评论
+"""
+
     prompt = f"""你是一位{platform}内容创作者。
 
 ## 账号定位
@@ -138,6 +158,7 @@ def build_article_prompt(account: dict, keyword: str, extra_prompt: str = "",
 主题/关键词：{keyword}
 {f'背景资料：{search_context}' if search_context else ''}
 {f'额外要求：{extra_prompt}' if extra_prompt else ''}
+{emotion_conflict_rules}
 
 ## 输出格式要求
 请严格按以下 JSON 格式输出（不要输出其他内容）：
@@ -146,7 +167,7 @@ def build_article_prompt(account: dict, keyword: str, extra_prompt: str = "",
 {{
   "title": "文章标题",
   "digest": "一句话摘要（30字以内）",
-  "subtitle": "开头引言/副标题",
+  "subtitle": "开头引言/副标题（短、狠、能代入）",
   "sections": [
     {{
       "title": "段落标题",
@@ -158,11 +179,11 @@ def build_article_prompt(account: dict, keyword: str, extra_prompt: str = "",
 ```
 
 ## 写作要求
-1. 标题要有吸引力和点击欲
-2. 内容有深度、有观点、有价值
-3. 结构清晰，分3-5个段落
+1. 标题要有吸引力和点击欲（更偏口语、有冲突、有画面）
+2. 内容有深度、有观点、有价值（但表达要短、狠、准）
+3. 结构清晰，分4-6个段落模块更好（每段落 2-4 个短段）
 4. 符合{platform}平台的内容规范
-5. 最后一段可以是总结/感悟/呼吁
+5. 最后一段必须有“行动+提问”
 {f'6. {extra_inst}' if extra_inst else ''}"""
 
     # Append style description or reference articles
