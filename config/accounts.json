@@ -38,7 +38,8 @@
           "domain": "社会人生感悟",
           "mimic_style": "净心茶社禅意风",
           "persona": "在浮躁的人世间，安放一颗清明的心。这里分享人生哲理、社会感悟与职场心得，愿读者能净心静气，笑看人生百态。\n",
-          "tone": "真诚分享"
+          "tone": "真诚分享",
+          "article_mode": "emotion_conflict"
         }
       }
     }
