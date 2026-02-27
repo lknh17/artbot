@@ -87,6 +87,7 @@ header p { color: #94a3b8; margin-top: 8px; font-size: 14px; }
         <div class="tab" onclick="switchTab('profiles')">🎭 Profiles</div>
         <div class="tab" onclick="switchTab('layouts')">🎨 Layouts</div>
         <div class="tab" onclick="switchTab('autotopic')">🎯 自动选题</div>
+        <div class="tab" onclick="switchTab('topicbanks')">📚 选题库</div>
         <div class="tab" onclick="switchTab('hot')">🔥 Trend</div>
         <div class="tab" onclick="switchTab('stats')">📊 Stats</div>
         <div class="tab" onclick="switchTab('settings')">⚙️ Settings</div>
@@ -324,6 +325,31 @@ header p { color: #94a3b8; margin-top: 8px; font-size: 14px; }
         </details>
     </div>
 
+    <!-- ==================== 选题库 ==================== -->
+    <div id="panel-topicbanks" class="panel">
+        <div class="card">
+            <h3>选题库（按账号）</h3>
+            <p style="color:#94a3b8; font-size:13px; margin-bottom:16px;">每个号绑定自己的选题库，用于自动选题与“去同质化轮换”。建议只维护“痛点/场景/冲突/动作”的原子素材，不需要提前生成成品文章。</p>
+
+            <div class="form-group">
+                <label>选择账号</label>
+                <select id="tb_account" onchange="loadTopicBank()"></select>
+                <div class="hint">不同账号对应不同文件：config/topic_banks/&lt;account_id&gt;.json</div>
+            </div>
+
+            <div class="form-group">
+                <label>选题库 JSON</label>
+                <textarea id="tb_json" style="min-height:360px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;" placeholder="{ ... }"></textarea>
+                <div class="hint">支持直接编辑保存；保存后会更新 updated_at 字段。</div>
+            </div>
+
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <button class="btn btn-secondary" onclick="loadTopicBank()">刷新</button>
+                <button class="btn btn-primary" onclick="saveTopicBank()">保存</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ==================== Trend ==================== -->
     <div id="panel-hot" class="panel">
         <div style="display:flex; gap:10px; margin-bottom:16px; align-items:center; flex-wrap:wrap;">
@@ -494,6 +520,7 @@ function switchTab(name) {
     if (name === 'layouts') loadLayoutThemes();
     if (name === 'jobs') loadDrafts();
     if (name === 'autotopic') { loadAutotopic(); refreshAutotopicDebugAccounts(); }
+    if (name === 'topicbanks') { loadAccountsForTopicBanks(); }
     if (name === 'stats') { loadAccountsForStats(); loadStats(); }
 }
 
@@ -1725,6 +1752,59 @@ function refreshAutotopicDebugAccounts() {
     if (!sel) return;
     const opts = accountsCache.map(a => `<option value="${a.id}">${a.name} (${({wechat_mp:'公众号',xhs:'小红书'})[a.platform]||a.platform})</option>`).join('');
     sel.innerHTML = '<option value="">(选择账号)</option>' + opts;
+}
+
+// ==================== Topic Banks ====================
+async function loadAccountsForTopicBanks() {
+    // Ensure accountsCache exists
+    if (!accountsCache || !accountsCache.length) {
+        await loadAccounts();
+    }
+    const sel = document.getElementById('tb_account');
+    if (!sel) return;
+    sel.innerHTML = accountsCache.map(a => `<option value="${a.id}">${a.name} (${({wechat_mp:'公众号',xhs:'小红书'})[a.platform]||a.platform})</option>`).join('');
+    // auto load first
+    await loadTopicBank();
+}
+
+async function loadTopicBank() {
+    const accountId = document.getElementById('tb_account')?.value || '';
+    if (!accountId) return;
+    const box = document.getElementById('tb_json');
+    if (box) box.value = '加载中...';
+    const res = await fetch(API + `/topic_banks?account_id=${encodeURIComponent(accountId)}`);
+    const data = await res.json();
+    if (!data.success) {
+        showToast('加载失败：' + (data.error || 'unknown'));
+        if (box) box.value = '';
+        return;
+    }
+    if (box) box.value = JSON.stringify(data.data || {}, null, 2);
+}
+
+async function saveTopicBank() {
+    const accountId = document.getElementById('tb_account')?.value || '';
+    if (!accountId) { showToast('请选择账号'); return; }
+    const box = document.getElementById('tb_json');
+    if (!box) return;
+    let obj = null;
+    try {
+        obj = JSON.parse(box.value);
+    } catch(e) {
+        showToast('JSON 格式错误：' + e.message);
+        return;
+    }
+    const res = await fetch(API + '/topic_banks', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({account_id: accountId, data: obj})
+    });
+    const data = await res.json();
+    if (!data.success) {
+        showToast('保存失败：' + (data.error || 'unknown'));
+        return;
+    }
+    showToast('✅ 已保存选题库');
+    await loadTopicBank();
 }
 
 // ==================== Stats ====================

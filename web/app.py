@@ -38,6 +38,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 ACCOUNTS_FILE = os.path.join(PROJECT_ROOT, "config", "accounts.json")
 STYLES_FILE = os.path.join(PROJECT_ROOT, "config", "writing_styles.json")
+TOPIC_BANKS_DIR = os.path.join(PROJECT_ROOT, "config", "topic_banks")
 
 
 @app.route("/")
@@ -221,6 +222,54 @@ def save_accounts():
         merged.append(acc)
 
     save_json(ACCOUNTS_FILE, {"accounts": merged})
+    return jsonify({"success": True})
+
+
+@app.route("/api/topic_banks", methods=["GET"])
+def get_topic_bank():
+    """Get topic bank JSON for an account.
+
+    Query params:
+      - account_id: required
+    """
+    account_id = (request.args.get("account_id") or "").strip()
+    if not account_id:
+        return jsonify({"success": False, "error": "account_id is required"}), 400
+
+    path = os.path.join(TOPIC_BANKS_DIR, f"{account_id}.json")
+    if not os.path.exists(path):
+        return jsonify({
+            "success": True,
+            "data": {
+                "account_id": account_id,
+                "version": 1,
+                "updated_at": datetime.now().isoformat(),
+                "banks": [],
+            }
+        })
+
+    return jsonify({"success": True, "data": load_json(path, {})})
+
+
+@app.route("/api/topic_banks", methods=["POST"])
+def save_topic_bank():
+    """Save topic bank JSON for an account."""
+    payload = request.json or {}
+    account_id = (payload.get("account_id") or "").strip()
+    if not account_id:
+        return jsonify({"success": False, "error": "account_id is required"}), 400
+
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        return jsonify({"success": False, "error": "data must be an object"}), 400
+
+    os.makedirs(TOPIC_BANKS_DIR, exist_ok=True)
+    data.setdefault("account_id", account_id)
+    data.setdefault("version", 1)
+    data["updated_at"] = datetime.now().isoformat()
+
+    path = os.path.join(TOPIC_BANKS_DIR, f"{account_id}.json")
+    save_json(path, data)
     return jsonify({"success": True})
 
 
