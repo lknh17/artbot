@@ -10,7 +10,55 @@ def generate_image(prompt: str, output_path: str, resolution="1024:1024", style_
 
     - style_prefix: preferred from account profile (per-account)
     - fallback to legacy global config.image_style_prefix
+
+    Fallback behavior:
+    - If Hunyuan credentials are missing/invalid or API fails, generate a local placeholder JPG
+      so the pipeline can continue (HTML preview still works; WeChat upload may still fail).
     """
+
+    def _parse_res(res: str) -> tuple[int, int]:
+        try:
+            w, h = (res or "").split(":", 1)
+            return int(w), int(h)
+        except Exception:
+            return 1024, 1024
+
+    def _make_placeholder(path: str, res: str, text: str) -> None:
+        from PIL import Image, ImageDraw, ImageFont
+
+        w, h = _parse_res(res)
+        img = Image.new("RGB", (w, h), (245, 245, 245))
+        draw = ImageDraw.Draw(img)
+
+        # Basic typography: use default bitmap font (portable)
+        font = ImageFont.load_default()
+        pad = 24
+        msg = (text or "").strip()[:200]
+        msg = "[placeholder image]\n" + msg
+
+        # crude wrapping
+        lines = []
+        line = ""
+        for ch in msg:
+            if ch == "\n":
+                lines.append(line)
+                line = ""
+                continue
+            if len(line) >= 48:
+                lines.append(line)
+                line = ""
+            line += ch
+        if line:
+            lines.append(line)
+
+        y = pad
+        for ln in lines[:18]:
+            draw.text((pad, y), ln, fill=(60, 60, 60), font=font)
+            y += 16
+
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        img.save(path, format="JPEG", quality=92)
+
     cfg = config.load_config()
     if style_prefix is None:
         style_prefix = cfg.get("image_style_prefix", "")
@@ -18,20 +66,51 @@ def generate_image(prompt: str, output_path: str, resolution="1024:1024", style_
     style_prefix = (style_prefix or "").strip()
     prompt = (prompt or "").strip()
     full_prompt = (style_prefix + " " + prompt).strip() if style_prefix else prompt
-    
+
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
-    
+
     print(f"[image_gen] Generating: {full_prompt[:60]}...", file=sys.stderr)
-    
+
     # 设置环境变量供 hunyuan_image 使用
     os.environ.setdefault("HUNYUAN_SECRET_ID", cfg.get("hunyuan_secret_id", ""))
     os.environ.setdefault("HUNYUAN_SECRET_KEY", cfg.get("hunyuan_secret_key", ""))
-    
-    job_id = submit_job(full_prompt, resolution)
-    url = poll_job(job_id)
-    download(url, output_path)
-    
-    return {"success": True, "url": url, "path": output_path, "prompt": full_prompt}
+
+    # Fast path: missing creds -> placeholder
+    if not os.environ.get("HUNYUAN_SECRET_ID") or not os.environ.get("HUNYUAN_SECRET_KEY"):
+        _make_placeholder(output_path, resolution, full_prompt)
+        return {
+            "success": True,
+            "url": "",
+            "path": output_path,
+            "prompt": full_prompt,
+            "fallback": "placeholder_missing_hunyuan_credentials",
+        }
+
+    try:
+        job_id = submit_job(full_prompt, resolution)
+        url = poll_job(job_id)
+        download(url, output_path)
+        return {"success": True, "url": url, "path": output_path, "prompt": full_prompt}
+    except SystemExit:
+        # hunyuan_image uses sys.exit(1) on API errors
+        _make_placeholder(output_path, resolution, full_prompt)
+        return {
+            "success": True,
+            "url": "",
+            "path": output_path,
+            "prompt": full_prompt,
+            "fallback": "placeholder_hunyuan_error",
+        }
+    except Exception as e:
+        _make_placeholder(output_path, resolution, full_prompt)
+        return {
+            "success": True,
+            "url": "",
+            "path": output_path,
+            "prompt": full_prompt,
+            "fallback": "placeholder_exception",
+            "error": str(e),
+        }
 
 
 def generate_cover(prompt: str, output_dir: str, style_prefix=None, resolution: str | None = None) -> dict:

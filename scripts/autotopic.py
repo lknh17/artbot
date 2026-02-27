@@ -560,7 +560,30 @@ def run_autotopic(config: dict = None, accounts: list = None) -> dict:
         msg = format_manual_message(result_accounts)
     else:
         msg = format_auto_message(result_accounts, auto_count)
-    
+
+    # 5. Persist state for later selection parsing (Feishu replies / web UI)
+    # NOTE: cron runner and message delivery rely on this state.
+    try:
+        project_root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+        out_dir = os.path.join(project_root, "output")
+        os.makedirs(out_dir, exist_ok=True)
+
+        state = {
+            "mode": mode,
+            "accounts": result_accounts,
+            "message": msg,
+            "total_hot": len(hot_items),
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "updated_at": datetime.now().isoformat(),
+        }
+        with open(os.path.join(out_dir, "autotopic_state.json"), "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False, indent=2)
+        with open(os.path.join(out_dir, "autotopic_pending_msg.txt"), "w", encoding="utf-8") as f:
+            f.write(msg)
+    except Exception:
+        # best-effort; don't block
+        pass
+
     return {
         "mode": mode,
         "accounts": result_accounts,
