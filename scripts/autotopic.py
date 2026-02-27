@@ -434,9 +434,7 @@ def run_autotopic(config: dict = None, accounts: list = None) -> dict:
                 "account_id": str,
                 "account_name": str,
                 "platform": str,
-                "candidates": [...],
-                "hot_candidates": [...],
-                "self_candidates": [...],
+                "candidates": [...],  # unified 10 titles
             },
         },
         "mode": "manual" | "auto",
@@ -455,13 +453,12 @@ def run_autotopic(config: dict = None, accounts: list = None) -> dict:
     
     mode = config.get("mode", "manual")
 
-    # How many titles to propose in each category
-    hot_title_count = int(config.get("hot_title_count", 3) or 0)
-    self_title_count = int(config.get("self_title_count", 0) or 0)
-
-    # Backward-compat: if older config only has manual_title_count, treat it as hot_title_count
-    if hot_title_count <= 0:
-        hot_title_count = int(config.get("manual_title_count", 5) or 5)
+    # New strategy: generate a unified list of candidates (mostly from topic bank,
+    # optionally mixed with a few hot-driven titles).
+    total_title_count = int(config.get("title_count", 10) or 10)
+    hot_mix_count = int(config.get("hot_mix_count", 3) or 3)
+    hot_title_count = max(0, min(hot_mix_count, total_title_count))
+    bank_title_count = max(0, total_title_count - hot_title_count)
 
     # In auto mode, how many articles to auto-generate/push per account
     auto_count = int(config.get("auto_count", 3) or 3)
@@ -521,14 +518,46 @@ def run_autotopic(config: dict = None, accounts: list = None) -> dict:
         except Exception:
             return []
 
-    def _llm_self_titles(acc: dict, count: int) -> list:
+    def _llm_bank_titles(acc: dict, count: int) -> list:
         if count <= 0:
             return []
         try:
-            from scripts.self_topics import build_self_title_prompt
+            from scripts.topic_banks import load_topic_bank, flatten_atoms
             from scripts.llm import chat
-            prompt = build_self_title_prompt(acc, count=count)
-            out = chat(prompt, temperature=0.9, max_tokens=500)
+            bank = load_topic_bank(acc.get("id", ""))
+            atoms = flatten_atoms(bank)
+
+            ws = (acc.get("profile") or {}).get("writing_style") or {}
+            domain = ws.get("domain", "")
+            persona = ws.get("persona", "")
+            audience = ws.get("audience", "")
+            tone = ws.get("tone", "")
+
+            platform = "公众号" if acc.get("platform") == "wechat_mp" else "小红书"
+
+            prompt = f"""你是一位{platform}内容创作者，请为账号生成 {count} 个“爆款潜力标题”。
+
+账号定位：
+- 领域：{domain}
+- 人设：{persona}
+- 读者：{audience}
+- 语气：{tone}
+
+选题库素材（必须使用其中的具体场景/冲突来写标题，避免泛泛）：
+- 痛点：{atoms.get('problems', [])[:24]}
+- 场景：{atoms.get('scenes', [])[:24]}
+- 冲突：{atoms.get('conflicts', [])[:24]}
+- 动作：{atoms.get('actions', [])[:24]}
+
+要求：
+1) 标题更适合 30-40 岁读者（婚姻/育儿/职场/父母/健康/房贷等）
+2) 每个标题必须带“具体场景词”或“冲突词”，禁止空词（快节奏时代/不难发现/越来越…）
+3) 10-30 字为主，尽量口语、有立场（你以为/其实/别再/真正…）
+4) 每行一个标题，不要编号，不要解释。
+
+请输出 {count} 个标题："""
+
+            out = chat(prompt, temperature=0.9, max_tokens=700)
             import re
             raw = []
             for l in out.splitlines():
@@ -540,7 +569,6 @@ def run_autotopic(config: dict = None, accounts: list = None) -> dict:
                 l = re.sub(r"^\[\s*\d+\s*\]\s*", "", l).strip()
                 if l:
                     raw.append(l)
-
             # de-duplicate while keeping order
             seen = set(); uniq = []
             for t in raw:
@@ -587,28 +615,30 @@ def run_autotopic(config: dict = None, accounts: list = None) -> dict:
                 "search_suggested": _should_web_search_hot(t, acc),
             })
 
-        # ✨ Self candidates (no hot dependence)
-        self_candidates = []
-        self_titles = _llm_self_titles(acc, self_title_count)
-        for st in self_titles:
-            self_candidates.append({
-                "category": "self",
+        # 📚 Bank candidates (topic bank driven)
+        bank_candidates = []
+        bank_titles = _llm_bank_titles(acc, bank_title_count)
+        for bt in bank_titles:
+            bank_candidates.append({
+                "category": "bank",
                 "original_title": "",
-                "suggested_title": st,
-                "source": "self",
+                "suggested_title": bt,
+                "source": "topic_bank",
                 "url": "",
+                "rank": None,
+                "platform": "",
                 "score": 0,
+                "search_suggested": False,
             })
 
-        candidates = hot_candidates + self_candidates
+        # Unified candidates: mostly bank + a few hot
+        candidates = (bank_candidates + hot_candidates)[:total_title_count]
 
         result_accounts[label] = {
             "account_id": acc.get("id", ""),
             "account_name": acc.get("name", ""),
             "platform": acc.get("platform", ""),
             "candidates": candidates,
-            "hot_candidates": hot_candidates,
-            "self_candidates": self_candidates,
         }
     
     # 4. Format message
@@ -671,23 +701,15 @@ def format_manual_message(accounts: dict) -> str:
         acc_name = data["account_name"] or data["account_id"]
         lines.append(f"【{label}】{acc_name}")
 
-        hot = data.get("hot_candidates") or []
-        selfc = data.get("self_candidates") or []
-        if hot:
-            lines.append("  🔥 热点类")
-            for i, c in enumerate(hot, 1):
-                source = f"（{c['source']}）" if c.get("source") else ""
+        cands = data.get("candidates") or []
+        if cands:
+            for i, c in enumerate(cands, 1):
+                tag = "📚" if c.get("category") == "bank" or c.get("source") == "topic_bank" else ("🔥" if c.get("category") == "hot" else "")
+                source = f"（{c['source']}）" if c.get("source") and c.get("source") not in ("topic_bank", "self") else ""
                 ref = f"\n      参考：{c['original_title']}" if c.get("original_title") else ""
-                lines.append(f"    {label}{i}. {c['suggested_title']}{source}{ref}")
-
-        if selfc:
-            lines.append("  ✨ 自主生成")
-            offset = len(hot)
-            for j, c in enumerate(selfc, 1):
-                i = offset + j
-                lines.append(f"    {label}{i}. {c['suggested_title']}")
-
-        if (not hot) and (not selfc):
+                hint = " 🔎" if c.get("search_suggested") else ""
+                lines.append(f"  {label}{i}. {tag}{c['suggested_title']}{source}{hint}{ref}")
+        else:
             lines.append("  （暂无候选）")
 
         lines.append("")
@@ -755,10 +777,6 @@ def parse_selection(text: str, accounts: dict) -> list:
                 "platform": accounts[label]["platform"],
                 "title": c["suggested_title"],
                 "url": c.get("url", ""),
-                "original_title": c.get("original_title", ""),
-                "source": c.get("source", ""),
-                "search_suggested": bool(c.get("search_suggested")),
-                "rank": c.get("rank"),
                 "original_title": c.get("original_title", ""),
                 "source": c.get("source", ""),
                 "search_suggested": bool(c.get("search_suggested")),
