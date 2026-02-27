@@ -182,6 +182,11 @@ def execute_pipeline(
             draft = create_draft(title, html, result["cover_media_id"], digest, wechat_appid=wechat_appid, wechat_secret=wechat_secret)
             result["draft"] = draft
             debug["draft"] = draft
+            try:
+                with open(os.path.join(output_dir, "wechat_draft.json"), "w", encoding="utf-8") as f:
+                    json.dump(draft, f, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
     
     # Update debug file at the end
     try:
