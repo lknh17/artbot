@@ -439,14 +439,28 @@ def execute_generation_task(task: dict) -> dict:
             search_meta = {"ok": False, "error": str(e), "hot_url": task.get("hot_url"), "hot_title": task.get("hot_title", "")}
 
     raw = chat(article_prompt, model="moonshot-v1-32k", temperature=0.7, max_tokens=3000)
-    m = _re.search(r'\{.*\}', raw, _re.DOTALL)
-    if not m:
-        task["status"] = "error"
-        task["error"] = "AI 返回无法解析的内容"
-        _update_task_status(task)
-        return task
 
-    article_data = json.loads(m.group())
+    # Prefer fenced json block if exists
+    m = _re.search(r"```json\s*(\{.*?\})\s*```", raw, _re.DOTALL | _re.IGNORECASE)
+    if m:
+        json_text = m.group(1)
+    else:
+        m = _re.search(r"\{.*\}", raw, _re.DOTALL)
+        if not m:
+            task["status"] = "error"
+            task["error"] = "AI 返回无法解析的内容"
+            _update_task_status(task)
+            return task
+        json_text = m.group()
+
+    # Some models occasionally output raw control chars inside JSON strings (invalid JSON).
+    # We sanitize and retry once.
+    try:
+        article_data = json.loads(json_text)
+    except Exception:
+        cleaned = _re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", json_text)
+        article_data = json.loads(cleaned)
+
     title = article_data.get("title", keyword)
     digest = article_data.get("digest", "")
     subtitle = article_data.get("subtitle", "")
