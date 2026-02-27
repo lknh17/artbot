@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 腾讯混元3.0图片生成
-API: aiart.tencentcloudapi.com / SubmitTextToImageJob + QueryTextToImageJob
+API: aiart.tencentcloudapi.com / SubmitTextToImageProJob + QueryTextToImageProJob
 """
 
 import hashlib
@@ -15,23 +15,29 @@ import urllib.request
 import urllib.error
 from datetime import datetime, timezone
 
-SECRET_ID = os.environ.get("HUNYUAN_SECRET_ID", "")
-SECRET_KEY = os.environ.get("HUNYUAN_SECRET_KEY", "")
+def _get_secret_id() -> str:
+    return os.environ.get("HUNYUAN_SECRET_ID", "")
+
+
+def _get_secret_key() -> str:
+    return os.environ.get("HUNYUAN_SECRET_KEY", "")
 REGION = "ap-guangzhou"
 ENDPOINT = "aiart.tencentcloudapi.com"
 SERVICE = "aiart"
 VERSION = "2022-12-29"
-SUBMIT_ACTION = "SubmitTextToImageJob"
-POLL_ACTION = "QueryTextToImageJob"
+SUBMIT_ACTION = "SubmitTextToImageProJob"
+POLL_ACTION = "QueryTextToImageProJob"
 POLL_INTERVAL = 3
 MAX_WAIT = 120
 
 
 def sign_tc3(action, payload_str, timestamp):
     date = datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime("%Y-%m-%d")
+    # Follow TencentCloud SDK's TC3 signing behavior: sign only content-type and host.
+    # (X-TC-Action is sent, but not included in SignedHeaders.)
     ct = "application/json; charset=utf-8"
-    canonical_headers = f"content-type:{ct}\nhost:{ENDPOINT}\nx-tc-action:{action.lower()}\n"
-    signed_headers = "content-type;host;x-tc-action"
+    canonical_headers = f"content-type:{ct}\nhost:{ENDPOINT}\n"
+    signed_headers = "content-type;host"
     hashed_payload = hashlib.sha256(payload_str.encode("utf-8")).hexdigest()
     canonical_request = f"POST\n/\n\n{canonical_headers}\n{signed_headers}\n{hashed_payload}"
 
@@ -42,13 +48,16 @@ def sign_tc3(action, payload_str, timestamp):
     def _hmac(key, msg):
         return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
 
-    secret_date = _hmac(("TC3" + SECRET_KEY).encode("utf-8"), date)
+    secret_key = _get_secret_key()
+    secret_id = _get_secret_id()
+
+    secret_date = _hmac(("TC3" + secret_key).encode("utf-8"), date)
     secret_service = hmac.new(secret_date, SERVICE.encode("utf-8"), hashlib.sha256).digest()
     secret_signing = hmac.new(secret_service, b"tc3_request", hashlib.sha256).digest()
     signature = hmac.new(secret_signing, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
 
     return (
-        f"TC3-HMAC-SHA256 Credential={SECRET_ID}/{credential_scope}, "
+        f"TC3-HMAC-SHA256 Credential={secret_id}/{credential_scope}, "
         f"SignedHeaders={signed_headers}, Signature={signature}"
     )
 
@@ -69,7 +78,7 @@ def call_api(action, payload):
     }
 
     req = urllib.request.Request(
-        f"https://{ENDPOINT}", data=payload_str.encode("utf-8"),
+        f"https://{ENDPOINT}/", data=payload_str.encode("utf-8"),
         headers=headers, method="POST",
     )
     try:

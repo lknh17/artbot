@@ -6,3 +6,5 @@ config/accounts.json
 config/autotopic.json
 config/writing_styles.json
 *.secret
+# local venv
+.venv/
