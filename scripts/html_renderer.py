@@ -298,6 +298,11 @@ def render_article(title: str, subtitle: str, sections: list, images: list = Non
     if include_cover_in_body and cover_url:
         parts.append(_image_block(cover_url, ""))
     
+    # Insert first inline image right after header if provided (after_section == -1)
+    if -1 in image_map:
+        img = image_map[-1]
+        parts.append(_image_block(img["url"], img.get("caption", "")))
+
     # Sections
     for i, sec in enumerate(sections):
         sec_title = sec.get("title", "")

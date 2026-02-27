@@ -69,6 +69,13 @@ def execute_pipeline(
             while len(picks) < inline_count and idx < len(sections):
                 picks.append(idx)
                 idx += step
+
+        # Always place the first inline image right after header for better公众号体验
+        if inline_count and inline_count > 0:
+            if not picks:
+                picks = [-1]
+            else:
+                picks[0] = -1
         # fallback: after_section 0..inline_count-1
         if not picks:
             picks = list(range(inline_count))
