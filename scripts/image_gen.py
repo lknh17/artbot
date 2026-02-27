@@ -65,7 +65,14 @@ def generate_image(prompt: str, output_path: str, resolution="1024:1024", style_
 
     style_prefix = (style_prefix or "").strip()
     prompt = (prompt or "").strip()
+    # De-duplicate style prefix if prompt already contains it.
+    if style_prefix and prompt.startswith(style_prefix):
+        style_prefix = ""
     full_prompt = (style_prefix + " " + prompt).strip() if style_prefix else prompt
+
+    # Clamp length to avoid provider limits (e.g. TextLengthExceed)
+    if len(full_prompt) > 180:
+        full_prompt = full_prompt[:180]
 
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
 

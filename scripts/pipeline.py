@@ -76,9 +76,19 @@ def execute_pipeline(
         for i, si in enumerate(picks, 1):
             sec = sections[min(si, len(sections)-1)] if sections else {}
             sec_title = (sec.get("title") or "").strip()
-            first_p = (sec.get("paragraphs") or [""])[0]
-            base_prompt = f"与段落主题相关的插图：{sec_title}。画面表达：{first_p[:80]}" if sec_title else (first_p[:80] or title)
-            full = (base_prompt + "。" + extra).strip() if extra else base_prompt
+            # Keep prompts short: Hunyuan rejects overly-long text.
+            # Avoid pasting paragraph text; use title-like semantic keywords instead.
+            base_topic = sec_title or title
+            base_prompt = f"{base_topic}，扁平插画，主体明确，留白干净，视觉吸引力强"
+
+            # Avoid duplicating style prefix: style_prefix will be applied in image_gen.
+            full = base_prompt
+            if extra and (extra not in full) and (extra != cfg.get("image_style_prefix", "")):
+                full = (full + "。" + extra).strip()
+
+            # Hard clamp to reduce TextLengthExceed risks.
+            if len(full) > 120:
+                full = full[:120]
             inline_prompts.append({
                 "after_section": min(si, max(0, len(sections)-1)) if sections else 0,
                 "prompt": full,
