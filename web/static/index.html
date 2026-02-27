@@ -1772,14 +1772,25 @@ async function loadTopicBank() {
     if (!accountId) return;
     const box = document.getElementById('tb_json');
     if (box) box.value = '加载中...';
-    const res = await fetch(API + `/topic_banks?account_id=${encodeURIComponent(accountId)}`);
-    const data = await res.json();
-    if (!data.success) {
-        showToast('加载失败：' + (data.error || 'unknown'));
+    try {
+        const res = await fetch(API + `/topic_banks?account_id=${encodeURIComponent(accountId)}`);
+        if (!res.ok) {
+            const txt = await res.text();
+            showToast(`加载失败：HTTP ${res.status}`);
+            if (box) box.value = txt || '';
+            return;
+        }
+        const data = await res.json();
+        if (!data.success) {
+            showToast('加载失败：' + (data.error || 'unknown'));
+            if (box) box.value = '';
+            return;
+        }
+        if (box) box.value = JSON.stringify(data.data || {}, null, 2);
+    } catch(e) {
+        showToast('加载失败：' + (e.message || e));
         if (box) box.value = '';
-        return;
     }
-    if (box) box.value = JSON.stringify(data.data || {}, null, 2);
 }
 
 async function saveTopicBank() {
@@ -1794,17 +1805,27 @@ async function saveTopicBank() {
         showToast('JSON 格式错误：' + e.message);
         return;
     }
-    const res = await fetch(API + '/topic_banks', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({account_id: accountId, data: obj})
-    });
-    const data = await res.json();
-    if (!data.success) {
-        showToast('保存失败：' + (data.error || 'unknown'));
-        return;
+    try {
+        const res = await fetch(API + '/topic_banks', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({account_id: accountId, data: obj})
+        });
+        if (!res.ok) {
+            const txt = await res.text();
+            showToast(`保存失败：HTTP ${res.status}`);
+            if (box) box.value = (box.value || '') + (txt ? `\n\n/* server */\n${txt}` : '');
+            return;
+        }
+        const data = await res.json();
+        if (!data.success) {
+            showToast('保存失败：' + (data.error || 'unknown'));
+            return;
+        }
+        showToast('✅ 已保存选题库');
+        await loadTopicBank();
+    } catch(e) {
+        showToast('保存失败：' + (e.message || e));
     }
-    showToast('✅ 已保存选题库');
-    await loadTopicBank();
 }
 
 // ==================== Stats ====================

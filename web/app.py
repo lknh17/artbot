@@ -28,7 +28,12 @@ def _cache_control(resp):
             resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
             resp.headers["Pragma"] = "no-cache"
         elif request.path.startswith("/static/"):
-            resp.headers["Cache-Control"] = "public, max-age=3600"
+            # index.html is the entrypoint and changes frequently; avoid stale UI.
+            if request.path.endswith("/static/index.html"):
+                resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+                resp.headers["Pragma"] = "no-cache"
+            else:
+                resp.headers["Cache-Control"] = "public, max-age=3600"
         # preview / other HTML: browser default caching
     except Exception:
         pass
