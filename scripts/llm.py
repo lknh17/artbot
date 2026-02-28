@@ -26,7 +26,14 @@ from typing import Any
 
 
 def _backend() -> str:
-    return (os.environ.get("ARTBOT_LLM_BACKEND") or "moonshot").strip().lower()
+    # Prefer config.json (no env required). Env kept only as an emergency override.
+    try:
+        from scripts.config import get
+        v = get("llm_backend", None)
+    except Exception:
+        v = None
+    v = (v or os.environ.get("ARTBOT_LLM_BACKEND") or "moonshot").strip().lower()
+    return v
 
 
 # -----------------------------
@@ -83,12 +90,22 @@ def _moonshot_chat(prompt: str, model: str, temperature: float, max_tokens: int)
 # -----------------------------
 
 def _openclaw_agent_id() -> str:
-    return (os.environ.get("ARTBOT_OPENCLAW_AGENT_ID") or "main").strip()
+    try:
+        from scripts.config import get
+        v = get("openclaw_agent_id", None)
+    except Exception:
+        v = None
+    return (v or os.environ.get("ARTBOT_OPENCLAW_AGENT_ID") or "main").strip()
 
 
 def _openclaw_timeout() -> int:
     try:
-        return int(os.environ.get("ARTBOT_OPENCLAW_TIMEOUT") or "90")
+        from scripts.config import get
+        v = get("openclaw_timeout", None)
+    except Exception:
+        v = None
+    try:
+        return int(v or os.environ.get("ARTBOT_OPENCLAW_TIMEOUT") or "90")
     except Exception:
         return 90
 

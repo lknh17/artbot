@@ -21,6 +21,13 @@ _defaults = {
     # Feishu notify target for artbot worker/web (optional)
     # Example: "chat:oc_xxx" (preferred). If empty, worker will fallback to current group.
     "feishu_target": "",
+
+    # LLM routing (artbot)
+    # - openclaw: route all LLM calls through a configured OpenClaw agent (uses token/OAuth login providers too)
+    # - moonshot: direct API call (requires Moonshot API key)
+    "llm_backend": "openclaw",
+    "openclaw_agent_id": "writing",
+    "openclaw_timeout": 90,
 }
 
 def load_config() -> dict:
