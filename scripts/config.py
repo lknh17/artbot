@@ -30,20 +30,20 @@ _defaults = {
             "path": os.path.join(os.path.dirname(__file__), "..", "docs", "SOP_GZH.md")
         },
         "dedup": {
-            "enabled": true,
+            "enabled": True,
             "similarity_threshold": 0.82,
             "action": "warn"
         },
         "quality": {
-            "enable_llm_self_check": false,
+            "enable_llm_self_check": False,
             "auto_rewrite": {
-                "enabled": false,
+                "enabled": False,
                 "score_threshold": 0.60,
                 "max_rewrites": 1
             }
         },
         "benchmarks": {
-            "enabled": false,
+            "enabled": False,
             "config_path": os.path.join(os.path.dirname(__file__), "..", "config", "gzh_benchmarks.json")
         }
     },
