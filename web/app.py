@@ -1201,6 +1201,35 @@ def gzh_add_published_api():
     rec = add_published(account_id=account_id, title=title, wechat=wechat, source=payload.get("source") if isinstance(payload.get("source"), dict) else {"from": "web"})
     return jsonify({"success": True, "item": rec})
 
+@app.route("/api/gzh/published/feedback", methods=["POST"])
+def gzh_published_feedback_api():
+    """Append a feedback record for a published article.
+
+    Payload:
+      {account_id, title, url?, metrics:{read?, like?, comment?, share?, collect?, _note?}}
+
+    Store: append into data/gzh/published.jsonl as a new record with source.from=feedback.
+    (Append-only, simple and robust.)
+    """
+    ensure_dirs()
+    payload = request.json or {}
+    account_id = (payload.get("account_id") or "").strip()
+    title = (payload.get("title") or "").strip()
+    url = (payload.get("url") or "").strip()
+    metrics = payload.get("metrics") if isinstance(payload.get("metrics"), dict) else {}
+    if not account_id or not title:
+        return jsonify({"success": False, "error": "account_id and title are required"}), 400
+
+    rec = add_published(
+        account_id=account_id,
+        title=title,
+        wechat={"url": url},
+        source={"from": "feedback", "via": "web"},
+        metrics=metrics,
+    )
+    return jsonify({"success": True, "item": rec})
+
+
 @app.route("/api/gzh/benchmarks/delete", methods=["POST"])
 def gzh_benchmarks_delete_api():
     """Delete benchmark(s) by id.
