@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://artbot.local/schemas/gzh_published.schema.json",
+  "title": "GZH Published Article",
+  "type": "object",
+  "required": ["id", "created_at", "account_id", "title"],
+  "properties": {
+    "id": {"type": "string"},
+    "created_at": {"type": "string"},
+    "account_id": {"type": "string"},
+    "title": {"type": "string"},
+    "wechat": {
+      "type": "object",
+      "properties": {
+        "url": {"type": "string"},
+        "msgid": {"type": "string"},
+        "publish_at": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "source": {"type": "object", "additionalProperties": true},
+    "metrics": {"type": "object", "additionalProperties": true}
+  },
+  "additionalProperties": true
+}

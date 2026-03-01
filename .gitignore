@@ -8,3 +8,7 @@ config/writing_styles.json
 *.secret
 # local venv
 .venv/
+
+# data assets (pipelines)
+data/**
+!data/README.md

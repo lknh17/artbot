@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://artbot.local/schemas/gzh_topic_candidate.schema.json",
+  "title": "GZH Topic Candidate",
+  "type": "object",
+  "required": ["id", "created_at", "account_id", "title", "category"],
+  "properties": {
+    "id": {"type": "string"},
+    "created_at": {"type": "string"},
+    "date": {"type": "string", "description": "YYYY-MM-DD"},
+    "account_id": {"type": "string"},
+    "platform": {"type": "string", "description": "wechat_mp"},
+    "title": {"type": "string", "description": "suggested title"},
+    "category": {"type": "string", "description": "hot|regular"},
+    "source": {"type": "string"},
+    "original_title": {"type": "string"},
+    "url": {"type": "string"},
+    "rank": {"type": ["integer", "null"]},
+    "dedup": {
+      "type": "object",
+      "properties": {
+        "max_similarity": {"type": "number"},
+        "nearest_id": {"type": "string"},
+        "nearest_kind": {"type": "string", "description": "topic|draft|published|inspiration"}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

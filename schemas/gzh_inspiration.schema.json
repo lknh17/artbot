@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://artbot.local/schemas/gzh_inspiration.schema.json",
+  "title": "GZH Inspiration Item",
+  "type": "object",
+  "required": ["id", "created_at", "text", "source"],
+  "properties": {
+    "id": {"type": "string", "description": "unique id"},
+    "created_at": {"type": "string", "description": "ISO8601"},
+    "text": {"type": "string"},
+    "source": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {"type": "string", "description": "manual|hot|comment|link|note"},
+        "url": {"type": "string"},
+        "platform": {"type": "string"},
+        "title": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "tags": {"type": "array", "items": {"type": "string"}},
+    "status": {"type": "string", "description": "new|used|archived"}
+  },
+  "additionalProperties": true
+}

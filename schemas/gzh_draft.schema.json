@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://artbot.local/schemas/gzh_draft.schema.json",
+  "title": "GZH Draft",
+  "type": "object",
+  "required": ["id", "created_at", "account_id", "topic_title", "article"],
+  "properties": {
+    "id": {"type": "string"},
+    "created_at": {"type": "string"},
+    "account_id": {"type": "string"},
+    "topic_id": {"type": "string"},
+    "topic_title": {"type": "string"},
+    "status": {"type": "string", "description": "draft|pushed|error"},
+    "article": {
+      "type": "object",
+      "required": ["title", "digest", "subtitle", "sections"],
+      "properties": {
+        "title": {"type": "string"},
+        "digest": {"type": "string"},
+        "subtitle": {"type": "string"},
+        "sections": {"type": "array"}
+      },
+      "additionalProperties": true
+    },
+    "outputs": {
+      "type": "object",
+      "properties": {
+        "output_dir": {"type": "string"},
+        "html_path": {"type": "string"},
+        "preview_url": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "metrics": {"type": "object", "additionalProperties": true},
+    "dedup": {"type": "object", "additionalProperties": true}
+  },
+  "additionalProperties": true
+}
