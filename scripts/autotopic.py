@@ -166,7 +166,21 @@ def match_topics_for_account(hot_items: list, account: dict, count: int = 5) -> 
     
     # Sort by score desc, then rank asc
     scored.sort(key=lambda x: (-x["score"], x["rank"]))
-    return scored[:count]
+    
+    # Platform diversity: limit same platform to max 2 items
+    platform_counts = {}
+    diverse_result = []
+    for item in scored:
+        platform = item.get("platform", "unknown")
+        if platform_counts.get(platform, 0) >= 2:
+            continue
+        platform_counts[platform] = platform_counts.get(platform, 0) + 1
+        diverse_result.append(item)
+        if len(diverse_result) >= count:
+            break
+    
+    # If diversity filter returned too few, fallback to original sorted list
+    return diverse_result if len(diverse_result) >= min(count, 3) else scored[:count]
 
 
 def _load_writer_formulas(writer_key: str = "") -> list:
@@ -567,16 +581,21 @@ def run_autotopic(config: dict = None, accounts: list = None) -> dict:
 - 读者：{audience}
 - 语气：{tone}
 
-选题库素材（必须使用其中的具体场景/冲突来写标题，避免泛泛）：
-- 痛点：{atoms.get('problems', [])[:24]}
-- 场景：{atoms.get('scenes', [])[:24]}
-- 冲突：{atoms.get('conflicts', [])[:24]}
-- 动作：{atoms.get('actions', [])[:24]}
+选题库素材（参考这些场景/冲突的风格和角度，但请结合当前社会情绪自由发散，不要局限于这些具体素材）：
+- 痛点：{atoms.get('problems', [])[:12]}
+- 场景：{atoms.get('scenes', [])[:12]}
+- 冲突：{atoms.get('conflicts', [])[:12]}
+- 动作：{atoms.get('actions', [])[:12]}
 
-要求：
-1) 标题更适合 30-40 岁读者（婚姻/育儿/职场/父母/健康/房贷等）
-2) 每个标题必须带“具体场景词”或“冲突词”，禁止空词（快节奏时代/不难发现/越来越…）
-3) 10-30 字为主，尽量口语、有立场（你以为/其实/别再/真正…）
+发散要求：
+- 不要机械照搬上述素材，要结合账号定位，从"健康焦虑、父母养老、社交关系、自我成长"等新角度自由发散
+- 每个标题必须基于"具体场景"或"情绪冲突"，禁止空泛（如"快节奏时代""不难发现""越来越…"）
+- 避免连续多天重复同样的场景（如不要每天都是"家长群""书桌前"）
+
+格式要求：
+1) 标题适合 30-45 岁读者（婚姻/育儿/职场/父母/健康/房贷/中年转型等）
+2) 10-22 字为主，口语化、有立场（你以为/其实/别再/真正/到底…）
+3) 所有标题必须是中文，禁止英文或混合
 4) 每行一个标题，不要编号，不要解释。
 
 请输出 {count} 个标题："""
@@ -608,7 +627,7 @@ def run_autotopic(config: dict = None, accounts: list = None) -> dict:
         # 🔥 Hot candidates (optional)
         hot_candidates = []
         if hot_items and hot_title_count > 0:
-            matched = match_topics_for_account(hot_items, acc, count=max(1, hot_title_count) * 3)
+            matched = match_topics_for_account(hot_items, acc, count=max(1, hot_title_count) * 5)
             # de-dup with recent topics
             acc_hist = topic_history.get(acc.get("id", ""), {}) if isinstance(topic_history, dict) else {}
             recent_hot = set((acc_hist.get("recent_hot") or [])[:20]) if isinstance(acc_hist, dict) else set()
