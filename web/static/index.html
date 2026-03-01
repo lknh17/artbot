@@ -88,7 +88,10 @@ header p { color: #94a3b8; margin-top: 8px; font-size: 14px; }
         <div class="tab" onclick="switchTab('layouts')">🎨 Layouts</div>
         <div class="tab" onclick="switchTab('autotopic')">🎯 自动选题</div>
         <div class="tab" onclick="switchTab('topicbanks')">📚 选题库</div>
-        <div class="tab" onclick="switchTab('pipeline')">🧱 GZH 管线</div>
+        <div class="tab" onclick="switchTab('bench')">📈 爆款库</div>
+        <div class="tab" onclick="switchTab('topics2')">📚 选题库（新流程）</div>
+        <div class="tab" onclick="switchTab('write')">✍️ 内容撰写</div>
+        <div class="tab" onclick="switchTab('inventory')">📦 库存（草稿/已发布）</div>
         <div class="tab" onclick="switchTab('hot')">🔥 Trend</div>
         <div class="tab" onclick="switchTab('stats')">📊 Stats</div>
         <div class="tab" onclick="switchTab('settings')">⚙️ Settings</div>
@@ -351,106 +354,93 @@ header p { color: #94a3b8; margin-top: 8px; font-size: 14px; }
         </div>
     </div>
 
-    <!-- ==================== GZH Pipeline ==================== -->
-    <div id="panel-pipeline" class="panel">
+    <!-- ==================== 爆款库（Benchmarks） ==================== -->
+    <div id="panel-bench" class="panel">
         <div class="card">
-            <h3>公众号爆款四阶段管线（01/02/03/04）</h3>
-            <p style="color:#94a3b8; font-size:13px; margin-bottom:10px;">与 data/ 四类库对齐：素材资产化(01) → 结构化选题池(02) → SOP约束/质量评估/去重(03) → 发布归档(04)。</p>
-            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
-                <button class="btn btn-secondary btn-sm" onclick="pipelineRefreshAll()">刷新</button>
-                <button class="btn btn-primary btn-sm" onclick="pipelineIncubateTopics()">再生产选题（落库）</button>
-            </div>
-            <div class="hint" style="margin-top:8px;">提示：本页默认只做“查看/轻量管理”。重成本抓取/检索/LLM质检默认关闭。</div>
+            <h3>爆款库</h3>
+            <p style="color:#94a3b8; font-size:13px;">先跑通“手动投喂→解析→入库”。当前版本暂用 01 入库作为占位；下一版会加 URL/文本/PDF 三种入口 + 自动拆解（分类/文风/结构/爆款要素）并沉淀分类 prompt。</p>
         </div>
-
         <div class="row">
-            <div class="col-8">
-                <div class="card">
+            <div class="col-8"><div class="card">
                     <h3>01｜素材资产化（Ideas / Inspirations）</h3>
                     <div class="form-group">
                         <label>新增灵感</label>
                         <textarea id="pipe_insp_text" placeholder="一句话素材：具体场景/冲突/反常识点（越具体越好）"></textarea>
                         <div class="hint">写入 data/gzh/inspirations.jsonl（append-only）。</div>
-                    </div>
-                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                        <button class="btn btn-primary btn-sm" onclick="pipelineAddInspiration()">入库</button>
-                        <button class="btn btn-secondary btn-sm" onclick="pipelineLoad('inspirations')">刷新列表</button>
-                    </div>
-                    <div id="pipe_inspirations" style="margin-top:12px;"></div>
-                </div>
-
-                <div class="card">
-                    <h3>02｜结构化选题池（Topics：7常规+5热点）</h3>
-                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
-                        <button class="btn btn-secondary btn-sm" onclick="pipelineLoad('topics')">刷新</button>
-                    </div>
-                    <div id="pipe_topics"></div>
-                </div>
-
-                <div class="card">
-                    <h3>03｜草稿库（Drafts）</h3>
-                    <div class="hint" style="margin:-6px 0 10px 0;">来自 data/gzh/drafts.jsonl（管线草稿）与 output/（生成结果）。</div>
-                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
-                        <button class="btn btn-secondary btn-sm" onclick="pipelineLoad('drafts')">刷新管线草稿库</button>
-                    </div>
-                    <div id="pipe_drafts"></div>
-                </div>
-
-                <div class="card">
-                    <h3>04｜已发布归档（Published）</h3>
-                    <div class="form-group">
-                        <label>手动归档（最小可用）</label>
-                        <input id="pipe_pub_account" placeholder="account_id，例如 mp_chaguan" />
-                        <div class="hint">账号 id 可在 Accounts 页查看。</div>
-                    </div>
-                    <div class="form-group">
-                        <label>标题</label>
-                        <input id="pipe_pub_title" placeholder="已发布文章标题" />
-                    </div>
-                    <div class="form-group">
-                        <label>URL（可选）</label>
-                        <input id="pipe_pub_url" placeholder="https://mp.weixin.qq.com/s/..." />
-                    </div>
-                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                        <button class="btn btn-primary btn-sm" onclick="pipelineArchivePublished()">归档</button>
-                        <button class="btn btn-secondary btn-sm" onclick="pipelineLoad('published')">刷新列表</button>
-                    </div>
-                    <div id="pipe_published" style="margin-top:12px;"></div>
-                </div>
-            </div>
-
-            <div class="col-4">
+                    </div></div>
+            <div class="col-4"><div class="col-4">
                 <div class="card">
                     <h3>03｜SOP/质量/去重配置</h3>
                     <div class="form-group">
                         <label>相似度阈值（0~1）</label>
                         <input id="pipe_dedup_th" placeholder="0.82" />
                         <div class="hint">仅用于标记/预警（当前最小路径默认 warn）。</div>
-                    </div>
-                    <div class="form-group">
-                        <label>低分自动重写</label>
-                        <select id="pipe_autorewrite">
-                            <option value="false" selected>关闭（默认）</option>
-                            <option value="true">开启</option>
-                        </select>
-                        <div class="hint">开启会增加成本与不确定性，建议先关闭。</div>
-                    </div>
-                    <div class="form-group">
-                        <label>重写阈值（0~1）</label>
-                        <input id="pipe_rewrite_th" placeholder="0.60" />
-                    </div>
-                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                        <button class="btn btn-primary btn-sm" onclick="pipelineSaveSettings()">保存</button>
-                        <button class="btn btn-secondary btn-sm" onclick="pipelineLoadSettings()">刷新</button>
-                    </div>
-                    <details style="margin-top:12px;">
-                        <summary style="cursor:pointer; color:#f59e0b; font-weight:600;">查看当前 SOP（只读）</summary>
-                        <pre id="pipe_sop" style="white-space:pre-wrap; margin-top:10px; font-size:12px; color:#cbd5e1;"></pre>
-                    </details>
-                </div>
-            </div>
+                    </div></div>
         </div>
     </div>
+
+<!-- ==================== 选题库（新流程） ==================== -->
+    <div id="panel-topics2" class="panel">
+        <div class="card">
+            <h3>选题库</h3>
+            <p style="color:#94a3b8; font-size:13px;">支持“再生产”不断丰富选题库（落库并跳过精确重复）。</p>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+                <button class="btn btn-primary btn-sm" onclick="pipelineIncubateTopics()">再生产选题（落库）</button>
+                <button class="btn btn-secondary btn-sm" onclick="pipelineLoad('topics')">刷新</button>
+            </div>
+        </div>
+        <div class="card">
+                    <h3>02｜结构化选题池（Topics：7常规+5热点）</h3>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+                        <button class="btn btn-secondary btn-sm" onclick="pipelineLoad('topics')">刷新</button>
+                    </div>
+    </div>
+
+<!-- ==================== 内容撰写 ==================== -->
+    <div id="panel-write" class="panel">
+        <div class="card">
+            <h3>内容撰写</h3>
+            <p style="color:#94a3b8; font-size:13px;">这页会承接“选题→写作→入草稿库”的主流程。当前先把 SOP/质量/去重配置放在这里，并逐步把 Jobs 的生成流程迁移进来。</p>
+        </div>
+        <div class="row">
+            <div class="col-8">
+                <div class="card">
+                    <h3>生成入口（迁移中）</h3>
+                    <p style="color:#94a3b8; font-size:13px; line-height:1.8;">临时用法：先在「选题库」选一个主题，然后到「Jobs」生成并勾选推草稿箱。我会把“从选题库一键带入生成”做成这里的主按钮。</p>
+                </div>
+            </div>
+            <div class="col-4"><div class="col-4">
+                <div class="card">
+                    <h3>03｜SOP/质量/去重配置</h3>
+                    <div class="form-group">
+                        <label>相似度阈值（0~1）</label>
+                        <input id="pipe_dedup_th" placeholder="0.82" />
+                        <div class="hint">仅用于标记/预警（当前最小路径默认 warn）。</div>
+                    </div></div>
+        </div>
+    </div>
+
+<!-- ==================== 库存（Drafts/Published） ==================== -->
+    <div id="panel-inventory" class="panel">
+        <div class="card">
+            <h3>库存</h3>
+            <p style="color:#94a3b8; font-size:13px;">包含草稿库（03）与已发布（04）。</p>
+        </div>
+        <div class="card">
+                    <h3>03｜草稿库（Drafts）</h3>
+                    <div class="hint" style="margin:-6px 0 10px 0;">来自 data/gzh/drafts.jsonl（管线草稿）与 output/（生成结果）。</div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+                        <button class="btn btn-secondary btn-sm" onclick="pipelineLoad('drafts')">刷新管线草稿库</button>
+                    </div>
+        <div class="card">
+                    <h3>04｜已发布归档（Published）</h3>
+                    <div class="form-group">
+                        <label>手动归档（最小可用）</label>
+                        <input id="pipe_pub_account" placeholder="account_id，例如 mp_chaguan" />
+                        <div class="hint">账号 id 可在 Accounts 页查看。</div>
+                    </div>
+    </div>
+
 
     <!-- ==================== Trend ==================== -->
     <div id="panel-hot" class="panel">
