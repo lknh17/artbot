@@ -41,3 +41,31 @@
 - autotopic：候选生成改为单次LLM输出结构化 JSON，产出 hot(5) + regular(7)。
 - writing style：为净心茶社新增/切换到“单主题深挖·清明有光”（jingxin-zen-deep），并把 account 的 article_mode 改为 zen。
 - article_service：新增 zen 写法规则；生成后对超长段落自动按中文标点拆段（max_len=60），提升阅读体验。
+
+## 2026-03-01｜公众号爆款自动化四阶段管线（脚手架：数据资产化 + SOP + 质检）
+
+### 关键决策
+- 引入 4 类“库”（全部落地 `data/`，默认 gitignore）：
+  - inspirations（灵感库）
+  - topics（选题池）
+  - drafts（草稿库）
+  - published（已发布库）
+- 选题阶段继续复用 `scripts/autotopic.py`：保持 **12 条候选（7 常规 + 5 热点）**，并保持 **每账号单次 LLM 调用**策略。
+- 标杆文章不固定 28 篇，改为 `config/gzh_benchmarks.json` 可配置（默认关闭、默认不抓取正文）。
+
+### 质量与去重
+- 新增便宜的相似度检测（2-gram Jaccard），在孵化阶段对 topics 与历史 drafts/published 做相似度标记。
+- 写作阶段新增启发式质量评分 + 可配置的“低分自动重写”（默认关闭）：
+  - 先用启发式判断（0~1）
+  - 可选开启 LLM 自检（额外调用）
+
+### 指标/日志
+- 在 `scripts/llm.py` 增加结构化事件 `llm_text_call`（写入 `data/metrics/*.jsonl`）。
+- 在 `scripts/image_gen.py` 增加结构化事件 `llm_image_call`（写入 `data/metrics/*.jsonl`）。
+- 仍保留 `pipeline_debug.json` 中的 `llm_image_calls` 统计。
+
+### 新增脚手架入口
+- `python -m scripts.gzh_four_stage inspiration_add ...`
+- `python -m scripts.gzh_four_stage topic_incubate ...`
+- `python -m scripts.gzh_four_stage write_one ...`
+- `python -m scripts.gzh_four_stage archive_published ...`

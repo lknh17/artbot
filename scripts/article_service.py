@@ -649,6 +649,83 @@ def execute_generation_task(task: dict) -> dict:
     except Exception:
         pass
 
+    # 1.5 Quality check + optional auto rewrite (GZH pipeline)
+    try:
+        from scripts import config as _cfg
+        cfg_all = _cfg.load_config()
+        gzh = (cfg_all.get('gzh') or {})
+        qcfg = (gzh.get('quality') or {})
+        auto = (qcfg.get('auto_rewrite') or {})
+
+        from scripts.gzh_quality import heuristic_score, llm_self_check_prompt, rewrite_prompt
+
+        h_score, h_details = heuristic_score(article_data)
+        task.setdefault('quality', {})
+        task['quality'].update({
+            'heuristic_score': h_score,
+            'heuristic_details': h_details,
+        })
+
+        rewrites = 0
+        max_rewrites = int(auto.get('max_rewrites', 1) or 1)
+        score_th = float(auto.get('score_threshold', 0.6) or 0.6)
+        enable_auto = bool(auto.get('enabled', False))
+
+        while enable_auto and h_score < score_th and rewrites < max_rewrites:
+            issues = []
+            strategy = ''
+            if bool(qcfg.get('enable_llm_self_check', False)):
+                # LLM self-check (extra cost, off by default)
+                try:
+                    import json as _json
+                    import re as _re2
+                    chk_raw = chat(llm_self_check_prompt(article_data), temperature=0.2, max_tokens=600)
+                    m3 = _re2.search(r"\{[\s\S]*\}", chk_raw)
+                    chk = _json.loads(m3.group(0)) if m3 else {}
+                    issues = chk.get('issues') or []
+                    strategy = chk.get('rewrite_strategy') or ''
+                    task['quality'].setdefault('llm_checks', []).append(chk)
+                except Exception as _e:
+                    task['quality'].setdefault('llm_check_errors', []).append(str(_e))
+
+            # Rewrite the full article once
+            try:
+                raw2 = chat(rewrite_prompt(keyword, issues, strategy), model="moonshot-v1-32k", temperature=0.7, max_tokens=3200)
+                m4 = _re.search(r"```json\s*(\{.*?\})\s*```", raw2, _re.DOTALL | _re.IGNORECASE)
+                if m4:
+                    jt = m4.group(1)
+                else:
+                    m4 = _re.search(r"\{.*\}", raw2, _re.DOTALL)
+                    jt = m4.group(0) if m4 else ''
+                if jt:
+                    import json as _json2
+                    article_data2 = _json2.loads(_re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", jt))
+                    if isinstance(article_data2, dict) and article_data2.get('sections'):
+                        article_data = article_data2
+                        rewrites += 1
+                        h_score, h_details = heuristic_score(article_data)
+                        task['quality'].update({
+                            'heuristic_score': h_score,
+                            'heuristic_details': h_details,
+                            'rewrites': rewrites,
+                        })
+                    else:
+                        break
+                else:
+                    break
+            except Exception as _e2:
+                task['quality'].setdefault('rewrite_errors', []).append(str(_e2))
+                break
+
+    except Exception:
+        pass
+
+    # Refresh derived fields in case quality rewrite modified article_data
+    title = article_data.get("title", keyword)
+    digest = article_data.get("digest", "")
+    subtitle = article_data.get("subtitle", "")
+    sections = article_data.get("sections", [])
+
     # 2. Save article
     result = save_article(account_id, article_data, keyword, task.get("source_platform", ""))
     dirname = result["dirname"]
