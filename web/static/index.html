@@ -415,9 +415,16 @@ header p { color: #94a3b8; margin-top: 8px; font-size: 14px; }
         <div class="card">
             <h3>选题库</h3>
             <p style="color:#94a3b8; font-size:13px;">支持“再生产”不断丰富选题库（落库并跳过精确重复）。</p>
-            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
-                <button class="btn btn-primary btn-sm" onclick="pipelineIncubateTopics()">再生产选题（落库）</button>
-                <button class="btn btn-secondary btn-sm" onclick="pipelineLoad('topics')">刷新</button>
+            <div class="row" style="margin-top:10px;">
+                <div class="col-8">
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                        <select id="topic_gen_account" style="min-width:220px;"></select>
+                        <input id="topic_gen_count" style="width:120px;" placeholder="数量(10-300)" value="80" />
+                        <button class="btn btn-primary btn-sm" onclick="topicsGenerateBatch()">一键批量生成（按Profile）</button>
+                        <button class="btn btn-secondary btn-sm" onclick="pipelineLoad('topics')">刷新</button>
+                    </div>
+                    <div class="hint" style="margin-top:8px;">说明：按公众号 Profile 一次性生成大量不同分类选题，自动去重后落库。</div>
+                </div>
             </div>
         </div>
         <div class="card">
@@ -436,8 +443,39 @@ header p { color: #94a3b8; margin-top: 8px; font-size: 14px; }
         <div class="row">
             <div class="col-8">
                 <div class="card">
-                    <h3>生成入口（迁移中）</h3>
-                    <p style="color:#94a3b8; font-size:13px; line-height:1.8;">临时用法：先在「选题库」选一个主题，然后到「Jobs」生成并勾选推草稿箱。我会把“从选题库一键带入生成”做成这里的主按钮。</p>
+                    <h3>生成文章</h3>
+                    <div class="form-group">
+                        <label>选择账号</label>
+                        <select id="write_account" onchange="writeLoadTopics()"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>从选题库选择（可选）</label>
+                        <select id="write_topic" onchange="onWriteTopicChange()"></select>
+                        <div class="hint">选中后会自动填充下方“选题/关键词”。</div>
+                    </div>
+                    <div class="form-group">
+                        <label>选题/关键词</label>
+                        <textarea id="write_keyword" placeholder="越具体越好：场景+冲突+受众+语气"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>插图数量</label>
+                        <select id="write_num_images">
+                            <option value="0">无插图</option>
+                            <option value="1">1 张</option>
+                            <option value="2" selected>2 张</option>
+                            <option value="3">3 张</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>额外要求（可选）</label>
+                        <textarea id="write_extra_prompt" rows="3" placeholder="例如：更克制、更深挖、结尾给3分钟练习"></textarea>
+                    </div>
+                    <div class="checkbox-row">
+                        <input type="checkbox" id="write_push_to_draft" checked>
+                        <label for="write_push_to_draft">生成完成后推送到公众号草稿箱</label>
+                    </div>
+                    <button class="btn btn-primary" onclick="gzhWriteNow()">🚀 生成并入草稿库</button>
+                    <div class="hint" id="write_status" style="margin-top:10px;"></div>
                 </div>
             </div>
             <div class="col-4"><div class="col-4">

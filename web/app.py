@@ -20,6 +20,7 @@ from tools.store.json_store import load_json, save_json
 # GZH 4-stage pipeline stores
 from scripts.gzh_store import ensure_dirs, iter_jsonl, add_inspiration, add_published
 from scripts.gzh_benchmarks import ingest_text as bm_ingest_text, ingest_url as bm_ingest_url, ingest_pdf as bm_ingest_pdf
+from scripts.gzh_topics import generate_topics as gzh_generate_topics
 
 app = Flask(__name__, static_folder="static")
 
@@ -1127,6 +1128,67 @@ def gzh_benchmark_prompts_list_api():
         latest = {}
     items = [latest[k] for k in sorted(latest.keys())]
     return jsonify({"success": True, "items": items, "count": len(items)})
+
+
+@app.route("/api/gzh/write", methods=["POST"])
+def gzh_write_api():
+    """Generate an article synchronously and archive to pipeline drafts store (web-first)."""
+    ensure_dirs()
+    payload = request.json or {}
+    account_id = (payload.get('account_id') or '').strip()
+    keyword = (payload.get('keyword') or '').strip()
+    topic_id = (payload.get('topic_id') or '').strip()
+    topic_title = (payload.get('topic_title') or keyword).strip()
+
+    if not account_id or not keyword:
+        return jsonify({"success": False, "error": "account_id and keyword are required"}), 400
+
+    from scripts.article_service import create_generation_task, execute_generation_task
+    from scripts.llm import reset_metrics, get_metrics
+    reset_metrics()
+
+    try:
+        task = create_generation_task(
+            account_id=account_id,
+            keyword=keyword,
+            theme=payload.get('theme', None),
+            num_images=int(payload.get('num_images', 2)),
+            extra_prompt=payload.get('extra_prompt', ''),
+            push_to_draft=bool(payload.get('push_to_draft', True)),
+            source='gzh_write',
+            enqueue=False,
+        )
+        done = execute_generation_task(task)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+    # archive into pipeline drafts
+    try:
+        from scripts.gzh_store import add_draft
+        import os, json
+        outdir = done.get('dirname') or ''
+        art_path = os.path.join(PROJECT_ROOT, 'output', outdir, 'article.json') if outdir else ''
+        article = {"title": done.get('title') or topic_title, "digest": done.get('digest') or '', "subtitle": '', "sections": []}
+        if art_path and os.path.exists(art_path):
+            with open(art_path, 'r', encoding='utf-8') as f:
+                article = json.load(f)
+
+        outputs = {"output_dir": outdir, "preview_url": done.get('preview_url') or ''}
+        add_draft(
+            account_id=account_id,
+            topic_title=topic_title,
+            article=article,
+            topic_id=topic_id,
+            outputs=outputs,
+            metrics={"task": {"status": done.get('status'), "images": done.get('images')}, "quality": done.get('quality', {}), "llm": get_metrics()},
+            dedup={},
+            status='pushed' if payload.get('push_to_draft', True) else 'draft',
+        )
+    except Exception:
+        pass
+
+    done['llm_metrics'] = get_metrics()
+    return jsonify({"success": True, "result": done})
 @app.route("/api/gzh/published", methods=["POST"])
 def gzh_add_published_api():
     ensure_dirs()
@@ -1178,6 +1240,85 @@ def gzh_benchmarks_delete_api():
     return jsonify({"success": True, "deleted": deleted})
 
 
+
+
+@app.route("/api/gzh/topics/generate_batch", methods=["POST"])
+def gzh_topics_generate_batch_api():
+    """Generate many topics for an account based on its profile (web-first)."""
+    ensure_dirs()
+    payload = request.json or {}
+    account_id = (payload.get("account_id") or "").strip()
+    count = int(payload.get("count") or 80)
+    count = min(max(count, 10), 300)
+
+    if not account_id:
+        return jsonify({"success": False, "error": "account_id is required"}), 400
+
+    accounts_data = load_json(ACCOUNTS_FILE, {"accounts": []})
+    acc = None
+    for a in accounts_data.get("accounts", []):
+        if (a.get("id") or "").strip() == account_id:
+            acc = a
+            break
+    if not acc:
+        return jsonify({"success": False, "error": f"account not found: {account_id}"}), 404
+
+    # load latest benchmark prompts
+    prompts_path = os.path.join(PROJECT_ROOT, "data", "gzh", "benchmark_prompts.jsonl")
+    latest = {}
+    try:
+        for obj in iter_jsonl(prompts_path, limit=None):
+            cat = (obj.get("category") or "").strip()
+            if not cat:
+                continue
+            latest[cat] = (obj.get("prompt") or "")
+    except Exception:
+        latest = {}
+
+    profile = (acc.get("profile") or {})
+    profile2 = {
+        "name": acc.get("name") or account_id,
+        "audience": profile.get("audience") or "",
+        "domain": profile.get("domain") or "",
+        "persona": profile.get("persona") or "",
+        "tone": profile.get("tone") or "",
+        "title_config": profile.get("title_config") or {},
+    }
+
+    try:
+        items = gzh_generate_topics(profile2, latest, count=count)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+    # append to topics store
+    from scripts.gzh_store import add_topic_candidate, load_recent
+
+    existing = set()
+    for t in load_recent('topics', limit=3000):
+        if t.get('account_id') == account_id:
+            existing.add((t.get('title') or '').strip())
+
+    created = []
+    for it in items:
+        title = (it.get('title') or '').strip()
+        if not title or title in existing:
+            continue
+        rec = add_topic_candidate(
+            account_id=account_id,
+            title=title,
+            category=(it.get('category') or '其他'),
+            source='profile_batch',
+            original_title='',
+            url='',
+            extra={
+                "angle": it.get('angle') or '',
+                "pain": it.get('pain') or '',
+            }
+        )
+        created.append(rec)
+        existing.add(title)
+
+    return jsonify({"success": True, "count": len(created), "items": created[-50:]})
 @app.route("/api/gzh/topic_incubate", methods=["POST"])
 def gzh_topic_incubate_api():
     """Generate today's topic candidates and append to data/gzh/topics.jsonl.
