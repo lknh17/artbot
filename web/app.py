@@ -1139,6 +1139,45 @@ def gzh_add_published_api():
     rec = add_published(account_id=account_id, title=title, wechat=wechat, source=payload.get("source") if isinstance(payload.get("source"), dict) else {"from": "web"})
     return jsonify({"success": True, "item": rec})
 
+@app.route("/api/gzh/benchmarks/delete", methods=["POST"])
+def gzh_benchmarks_delete_api():
+    """Delete benchmark(s) by id.
+
+    Payload: {"ids": ["bm_xxx", ...]}
+
+    Implementation: rewrite JSONL excluding those ids (best-effort).
+    """
+    ensure_dirs()
+    payload = request.json or {}
+    ids = payload.get("ids") if isinstance(payload.get("ids"), list) else []
+    ids = [str(x).strip() for x in ids if str(x).strip()]
+    if not ids:
+        return jsonify({"success": False, "error": "ids is required"}), 400
+
+    path = os.path.join(PROJECT_ROOT, "data", "gzh", "benchmarks.jsonl")
+    if not os.path.exists(path):
+        return jsonify({"success": True, "deleted": 0})
+
+    kept = []
+    deleted = 0
+    try:
+        for obj in iter_jsonl(path, limit=None):
+            if isinstance(obj, dict) and (obj.get("id") in ids):
+                deleted += 1
+                continue
+            kept.append(obj)
+        # rewrite
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            for o in kept:
+                f.write(json.dumps(o, ensure_ascii=False) + "\n")
+        os.replace(tmp, path)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+    return jsonify({"success": True, "deleted": deleted})
+
+
 @app.route("/api/gzh/topic_incubate", methods=["POST"])
 def gzh_topic_incubate_api():
     """Generate today's topic candidates and append to data/gzh/topics.jsonl.
