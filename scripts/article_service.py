@@ -555,41 +555,78 @@ def execute_generation_task(task: dict) -> dict:
     subtitle = article_data.get("subtitle", "")
     sections = article_data.get("sections", [])
 
-
     def _split_long_paragraph(p: str, max_len: int = 60) -> list[str]:
+        """Split a paragraph into cleaner, WeChat-friendly short paragraphs.
+
+        - Prefer sentence-level splitting on Chinese punctuation.
+        - Merge too-short fragments to avoid choppy reading.
+        - Hard wrap as a last resort.
+        """
         p = (p or '').strip()
         if not p:
             return []
-        if len(p) <= max_len:
-            return [p]
-        # split by Chinese sentence punctuation first
-        parts = re.split(r'([。！？!?])', p)
-        buf = ''
-        out = []
+
+        # Keep list/quote-like lines intact (they already read like a block)
+        if re.match(r'^(\d+\s*[/、\.\)]\s*|[-•>])', p):
+            return [p] if len(p) <= max_len else [p[:max_len], p[max_len:]]
+
+        # Sentence split on Chinese end punctuation
+        parts = re.split(r'([。！？!?；;])', p)
+        sentences = []
         for i in range(0, len(parts), 2):
-            seg = parts[i]
+            seg = (parts[i] or '').strip()
             punct = parts[i+1] if i+1 < len(parts) else ''
             piece = (seg + punct).strip()
-            if not piece:
+            if piece:
+                sentences.append(piece)
+
+        # If no punctuation, treat as one sentence
+        if not sentences:
+            sentences = [p]
+
+        # Merge tiny sentences into the next one (avoid 1-liners like “其实更像撤退。” standing alone)
+        merged = []
+        buf = ''
+        for sent in sentences:
+            if not buf:
+                buf = sent
                 continue
-            if len(buf) + len(piece) <= max_len:
-                buf = (buf + piece).strip()
+            # if current buffer too short, merge
+            if len(buf) < 14:
+                buf = (buf + sent).strip()
             else:
-                if buf:
-                    out.append(buf)
-                buf = piece
+                merged.append(buf)
+                buf = sent
         if buf:
-            out.append(buf)
-        # final clamp: hard cut
+            merged.append(buf)
+
+        # Now ensure each paragraph <= max_len by greedy packing
+        packed = []
+        buf = ''
+        for sent in merged:
+            if not buf:
+                buf = sent
+            elif len(buf) + len(sent) <= max_len and len(buf) >= 18:
+                # only pack if buffer already has some weight
+                buf = (buf + sent).strip()
+            else:
+                packed.append(buf)
+                buf = sent
+        if buf:
+            packed.append(buf)
+
+        # Hard clamp
         final = []
-        for x in out:
+        for x in packed:
             x = x.strip()
             while len(x) > max_len:
                 final.append(x[:max_len])
                 x = x[max_len:]
             if x:
                 final.append(x)
-        return [x for x in final if x]
+
+        # Drop empties
+        return [x for x in final if x and x.strip()]
 
 
 
