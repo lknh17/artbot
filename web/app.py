@@ -19,6 +19,7 @@ from tools.store.json_store import load_json, save_json
 
 # GZH 4-stage pipeline stores
 from scripts.gzh_store import ensure_dirs, iter_jsonl, add_inspiration, add_published
+from scripts.gzh_benchmarks import ingest_text as bm_ingest_text, ingest_url as bm_ingest_url, ingest_pdf as bm_ingest_pdf
 
 app = Flask(__name__, static_folder="static")
 
@@ -1066,6 +1067,66 @@ def gzh_add_inspiration_api():
     return jsonify({"success": True, "item": rec})
 
 
+
+
+@app.route("/api/gzh/benchmarks/ingest", methods=["POST"])
+def gzh_benchmarks_ingest_api():
+    # multipart form fields: url | text | file(PDF)
+    ensure_dirs()
+    url = (request.form.get("url") or "").strip()
+    text_in = (request.form.get("text") or "").strip()
+    f = request.files.get("file")
+
+    try:
+        if url:
+            res = bm_ingest_url(url)
+        elif text_in:
+            res = bm_ingest_text(text_in, source={"type": "text", "from": "web"})
+        elif f is not None and getattr(f, 'filename', ''):
+            updir = os.path.join(PROJECT_ROOT, "output", ".uploads")
+            os.makedirs(updir, exist_ok=True)
+            tmp = os.path.join(updir, f"bm_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.path.basename(f.filename)}")
+            f.save(tmp)
+            res = bm_ingest_pdf(tmp, filename=f.filename)
+        else:
+            return jsonify({"success": False, "error": "请提供 url 或 text 或 PDF 文件"}), 400
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+    return jsonify({"success": True, "result": res})
+
+
+@app.route("/api/gzh/benchmarks", methods=["GET"])
+def gzh_benchmarks_list_api():
+    ensure_dirs()
+    limit = min(max(int(request.args.get("limit", 50)), 1), 500)
+    path = os.path.join(PROJECT_ROOT, "data", "gzh", "benchmarks.jsonl")
+    items = []
+    try:
+        for obj in iter_jsonl(path, limit=None):
+            items.append(obj)
+        if len(items) > limit:
+            items = items[-limit:]
+    except Exception:
+        items = []
+    return jsonify({"success": True, "items": items, "count": len(items)})
+
+
+@app.route("/api/gzh/benchmark_prompts", methods=["GET"])
+def gzh_benchmark_prompts_list_api():
+    ensure_dirs()
+    path = os.path.join(PROJECT_ROOT, "data", "gzh", "benchmark_prompts.jsonl")
+    latest = {}
+    try:
+        for obj in iter_jsonl(path, limit=None):
+            cat = (obj.get("category") or "").strip()
+            if not cat:
+                continue
+            latest[cat] = obj
+    except Exception:
+        latest = {}
+    items = [latest[k] for k in sorted(latest.keys())]
+    return jsonify({"success": True, "items": items, "count": len(items)})
 @app.route("/api/gzh/published", methods=["POST"])
 def gzh_add_published_api():
     ensure_dirs()

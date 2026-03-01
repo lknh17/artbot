@@ -360,6 +360,37 @@ header p { color: #94a3b8; margin-top: 8px; font-size: 14px; }
             <h3>爆款库</h3>
             <p style="color:#94a3b8; font-size:13px;">先跑通“手动投喂→解析→入库”。当前版本暂用 01 入库作为占位；下一版会加 URL/文本/PDF 三种入口 + 自动拆解（分类/文风/结构/爆款要素）并沉淀分类 prompt。</p>
         </div>
+        <div class="card">
+            <h3>爆款入库（URL / 文本 / PDF）</h3>
+            <div class="form-group">
+                <label>URL（可选）</label>
+                <input id="bm_url" placeholder="https://mp.weixin.qq.com/s/... 或任意网页" />
+            </div>
+            <div class="form-group">
+                <label>文本（可选）</label>
+                <textarea id="bm_text" placeholder="粘贴文章正文/片段（URL/文本/PDF 三选一即可）"></textarea>
+            </div>
+            <div class="form-group">
+                <label>PDF（可选）</label>
+                <input type="file" id="bm_pdf" accept="application/pdf" />
+                <div class="hint">只解析前 30 页（可后续配置）。</div>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <button class="btn btn-primary btn-sm" onclick="bmIngest()">解析并入库</button>
+                <button class="btn btn-secondary btn-sm" onclick="bmRefresh()">刷新爆款库</button>
+                <button class="btn btn-secondary btn-sm" onclick="bmPromptRefresh()">刷新分类prompt</button>
+            </div>
+            <div id="bm_status" class="hint" style="margin-top:10px;"></div>
+        </div>
+        <div class="card">
+            <h3>爆款库列表（最近）</h3>
+            <div id="bm_list"></div>
+        </div>
+        <div class="card">
+            <h3>分类爆款 prompt（沉淀结果）</h3>
+            <div id="bm_prompts"></div>
+        </div>
+
         <div class="row">
             <div class="col-8"><div class="card">
                     <h3>01｜素材资产化（Ideas / Inspirations）</h3>
@@ -2097,6 +2128,84 @@ function escapeHtml(s){
   return String(s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
 }
 
+
+// ==================== Benchmarks (爆款库) ====================
+async function bmIngest(){
+  const url = (document.getElementById('bm_url')||{}).value || '';
+  const text = (document.getElementById('bm_text')||{}).value || '';
+  const fileInput = document.getElementById('bm_pdf');
+  const file = fileInput && fileInput.files && fileInput.files[0];
+  const status = document.getElementById('bm_status');
+  if (status) status.textContent = '处理中…（解析+拆解可能需要几十秒）';
+
+  const fd = new FormData();
+  if (url.trim()) fd.append('url', url.trim());
+  if (text.trim()) fd.append('text', text.trim());
+  if (file) fd.append('file', file);
+
+  try{
+    const res = await fetch(API + '/gzh/benchmarks/ingest', {method:'POST', body: fd});
+    const data = await res.json();
+    if (!data.success){ showToast('入库失败：' + (data.error||'unknown')); if (status) status.textContent=''; return; }
+    showToast('✅ 爆款已解析入库');
+    if (status) status.textContent = '完成：已入库并更新分类prompt';
+    bmRefresh();
+    bmPromptRefresh();
+  }catch(e){
+    showToast('入库失败：' + (e.message||e));
+    if (status) status.textContent='';
+  }
+}
+
+async function bmRefresh(){
+  try{
+    const res = await fetch(API + '/gzh/benchmarks?limit=50');
+    const data = await res.json();
+    const box = document.getElementById('bm_list');
+    if (!box) return;
+    if (!data.success){ box.innerHTML = '<div style="color:#fca5a5;">加载失败</div>'; return; }
+    const items = data.items || [];
+    box.innerHTML = items.slice().reverse().map(it => {
+      const cat = escapeHtml(it.category||'');
+      const title = escapeHtml((it.analysis||{}).title_guess || '');
+      const tone = ((it.analysis||{}).tone||[]).slice(0,3).map(t=>`<span class="chip chip-on">${escapeHtml(t)}</span>`).join(' ');
+      const hook = escapeHtml((it.analysis||{}).hook || '');
+      return `<div class="draft-item" style="align-items:flex-start; gap:10px;">
+        <div style="flex:1;">
+          <div style="font-weight:700; color:#e2e8f0;">${title || '(无标题猜测)'} <span style="color:#60a5fa; font-weight:600;">[${cat}]</span></div>
+          <div style="margin-top:6px; color:#94a3b8; font-size:12px; line-height:1.6;">${hook}</div>
+          <div style="margin-top:6px;">${tone}</div>
+        </div>
+        <div style="color:#64748b; font-size:11px;">${escapeHtml(it.created_at||'')}</div>
+      </div>`;
+    }).join('') || '<div style="color:#64748b; padding:10px;">暂无</div>';
+  }catch(e){
+    const box=document.getElementById('bm_list');
+    if (box) box.innerHTML = '<div style="color:#fca5a5;">加载失败：'+escapeHtml(e.message||e)+'</div>';
+  }
+}
+
+async function bmPromptRefresh(){
+  try{
+    const res = await fetch(API + '/gzh/benchmark_prompts');
+    const data = await res.json();
+    const box = document.getElementById('bm_prompts');
+    if (!box) return;
+    if (!data.success){ box.innerHTML = '<div style="color:#fca5a5;">加载失败</div>'; return; }
+    const items = data.items || [];
+    box.innerHTML = items.map(it => {
+      const cat = escapeHtml(it.category||'');
+      const pr = escapeHtml(it.prompt||'');
+      return `<details class="card" style="background:#0f172a; margin:10px 0; border:1px solid #334155;">
+        <summary style="cursor:pointer; color:#f59e0b; font-weight:700;">${cat}</summary>
+        <pre style="white-space:pre-wrap; margin-top:10px; font-size:12px; color:#cbd5e1;">${pr}</pre>
+      </details>`;
+    }).join('') || '<div style="color:#64748b; padding:10px;">暂无</div>';
+  }catch(e){
+    const box=document.getElementById('bm_prompts');
+    if (box) box.innerHTML = '<div style="color:#fca5a5;">加载失败：'+escapeHtml(e.message||e)+'</div>';
+  }
+}
 // ==================== Init ====================
 (async function init() {
     const res = await fetch(API + '/themes');
