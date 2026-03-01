@@ -17,6 +17,9 @@ from scripts.html_renderer import THEMES
 from scripts.wechat_uploader import create_draft
 from tools.store.json_store import load_json, save_json
 
+# GZH 4-stage pipeline stores
+from scripts.gzh_store import ensure_dirs, iter_jsonl, add_inspiration, add_published
+
 app = Flask(__name__, static_folder="static")
 
 # Avoid stale UI from aggressive caches / reverse proxies
@@ -44,6 +47,9 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ACCOUNTS_FILE = os.path.join(PROJECT_ROOT, "config", "accounts.json")
 STYLES_FILE = os.path.join(PROJECT_ROOT, "config", "writing_styles.json")
 TOPIC_BANKS_DIR = os.path.join(PROJECT_ROOT, "config", "topic_banks")
+
+# Data assets root
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 
 
 @app.route("/")
@@ -946,6 +952,131 @@ def save_autotopic():
     data = request.json or {}
     save_json(AUTOTOPIC_FILE, data)
     return jsonify({"success": True})
+
+
+# -------------------------------------------------
+# GZH 4-stage pipeline assets APIs (data/)
+# -------------------------------------------------
+
+def _safe_tail_jsonl(path: str, limit: int = 200) -> list:
+    """Read JSONL tail (best-effort)."""
+    items = []
+    try:
+        for obj in iter_jsonl(path, limit=None):
+            items.append(obj)
+        if limit and len(items) > limit:
+            items = items[-limit:]
+    except Exception:
+        items = []
+    return items
+
+
+@app.route("/api/gzh/settings", methods=["GET"])
+def gzh_get_settings():
+    cfg = load_config()
+    return jsonify({"success": True, "gzh": cfg.get("gzh") or {}})
+
+
+@app.route("/api/gzh/settings", methods=["POST"])
+def gzh_update_settings():
+    """Update config.gzh with a shallow merge.
+
+    Payload: {gzh: {...}} or direct object.
+    """
+    payload = request.json or {}
+    incoming = payload.get("gzh") if isinstance(payload, dict) and "gzh" in payload else payload
+    if not isinstance(incoming, dict):
+        return jsonify({"success": False, "error": "payload must be an object"}), 400
+
+    cfg = load_config()
+    cur = cfg.get("gzh") or {}
+
+    def _merge(a: dict, b: dict) -> dict:
+        out = dict(a)
+        for k, v in b.items():
+            if isinstance(v, dict) and isinstance(out.get(k), dict):
+                out[k] = _merge(out[k], v)
+            else:
+                out[k] = v
+        return out
+
+    cfg["gzh"] = _merge(cur, incoming)
+    save_config(cfg)
+    return jsonify({"success": True, "gzh": cfg["gzh"]})
+
+
+@app.route("/api/gzh/sop", methods=["GET"])
+def gzh_get_sop():
+    """Return current SOP markdown (read-only)."""
+    cfg = load_config()
+    sop = (cfg.get("gzh") or {}).get("sop") or {}
+    path = sop.get("path") or os.path.join(PROJECT_ROOT, "docs", "SOP_GZH.md")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            text = f.read()
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e), "path": path}), 500
+    return jsonify({"success": True, "id": sop.get("id", ""), "path": path, "markdown": text})
+
+
+@app.route("/api/gzh/library/<kind>", methods=["GET"])
+def gzh_list_library(kind):
+    """List JSONL items from data/gzh/*.jsonl
+
+    kind: inspirations|topics|drafts|published
+    """
+    ensure_dirs()
+    limit = min(max(int(request.args.get("limit", 200)), 1), 2000)
+    account_id = (request.args.get("account_id") or "").strip()
+    q = (request.args.get("q") or "").strip()
+
+    file_map = {
+        "inspirations": os.path.join(PROJECT_ROOT, "data", "gzh", "inspirations.jsonl"),
+        "topics": os.path.join(PROJECT_ROOT, "data", "gzh", "topics.jsonl"),
+        "drafts": os.path.join(PROJECT_ROOT, "data", "gzh", "drafts.jsonl"),
+        "published": os.path.join(PROJECT_ROOT, "data", "gzh", "published.jsonl"),
+    }
+    if kind not in file_map:
+        return jsonify({"success": False, "error": "invalid kind"}), 400
+
+    items = _safe_tail_jsonl(file_map[kind], limit=limit)
+
+    def _match(it: dict) -> bool:
+        if account_id and (it.get("account_id") or "") != account_id:
+            return False
+        if q:
+            blob = json.dumps(it, ensure_ascii=False)
+            return q in blob
+        return True
+
+    items2 = [it for it in items if isinstance(it, dict) and _match(it)]
+    return jsonify({"success": True, "kind": kind, "items": items2, "count": len(items2)})
+
+
+@app.route("/api/gzh/inspirations", methods=["POST"])
+def gzh_add_inspiration_api():
+    ensure_dirs()
+    payload = request.json or {}
+    text = (payload.get("text") or "").strip()
+    if not text:
+        return jsonify({"success": False, "error": "text is required"}), 400
+    source = payload.get("source") if isinstance(payload.get("source"), dict) else {"type": payload.get("source_type") or "manual"}
+    tags = payload.get("tags") if isinstance(payload.get("tags"), list) else []
+    rec = add_inspiration(text=text, source=source, tags=tags)
+    return jsonify({"success": True, "item": rec})
+
+
+@app.route("/api/gzh/published", methods=["POST"])
+def gzh_add_published_api():
+    ensure_dirs()
+    payload = request.json or {}
+    account_id = (payload.get("account_id") or "").strip()
+    title = (payload.get("title") or "").strip()
+    if not account_id or not title:
+        return jsonify({"success": False, "error": "account_id and title are required"}), 400
+    wechat = payload.get("wechat") if isinstance(payload.get("wechat"), dict) else {"url": (payload.get("url") or "").strip()}
+    rec = add_published(account_id=account_id, title=title, wechat=wechat, source=payload.get("source") if isinstance(payload.get("source"), dict) else {"from": "web"})
+    return jsonify({"success": True, "item": rec})
 
 
 @app.route("/api/autotopic/run_once", methods=["POST"])

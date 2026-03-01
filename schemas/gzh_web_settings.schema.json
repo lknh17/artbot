@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://artbot.local/schemas/gzh_web_settings.schema.json",
+  "title": "GZH Web Pipeline Settings",
+  "type": "object",
+  "properties": {
+    "dedup": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "similarity_threshold": {"type": "number", "minimum": 0, "maximum": 1},
+        "action": {"type": "string", "enum": ["warn", "abort", "rewrite"]}
+      },
+      "additionalProperties": true
+    },
+    "quality": {
+      "type": "object",
+      "properties": {
+        "enable_llm_self_check": {"type": "boolean"},
+        "auto_rewrite": {
+          "type": "object",
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "score_threshold": {"type": "number", "minimum": 0, "maximum": 1},
+            "max_rewrites": {"type": "integer", "minimum": 0, "maximum": 3}
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "benchmarks": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "config_path": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "sop": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "string", "description": "sop id, e.g. gzh_v1"},
+        "path": {"type": "string", "description": "path to SOP markdown"}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

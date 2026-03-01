@@ -88,6 +88,7 @@ header p { color: #94a3b8; margin-top: 8px; font-size: 14px; }
         <div class="tab" onclick="switchTab('layouts')">🎨 Layouts</div>
         <div class="tab" onclick="switchTab('autotopic')">🎯 自动选题</div>
         <div class="tab" onclick="switchTab('topicbanks')">📚 选题库</div>
+        <div class="tab" onclick="switchTab('pipeline')">🧱 GZH 管线</div>
         <div class="tab" onclick="switchTab('hot')">🔥 Trend</div>
         <div class="tab" onclick="switchTab('stats')">📊 Stats</div>
         <div class="tab" onclick="switchTab('settings')">⚙️ Settings</div>
@@ -350,6 +351,107 @@ header p { color: #94a3b8; margin-top: 8px; font-size: 14px; }
         </div>
     </div>
 
+    <!-- ==================== GZH Pipeline ==================== -->
+    <div id="panel-pipeline" class="panel">
+        <div class="card">
+            <h3>公众号爆款四阶段管线（01/02/03/04）</h3>
+            <p style="color:#94a3b8; font-size:13px; margin-bottom:10px;">与 data/ 四类库对齐：素材资产化(01) → 结构化选题池(02) → SOP约束/质量评估/去重(03) → 发布归档(04)。</p>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+                <button class="btn btn-secondary btn-sm" onclick="pipelineRefreshAll()">刷新</button>
+                <button class="btn btn-primary btn-sm" onclick="pipelineIncubateTopics()">生成今日选题（落库）</button>
+            </div>
+            <div class="hint" style="margin-top:8px;">提示：本页默认只做“查看/轻量管理”。重成本抓取/检索/LLM质检默认关闭。</div>
+        </div>
+
+        <div class="row">
+            <div class="col-8">
+                <div class="card">
+                    <h3>01｜素材资产化（Ideas / Inspirations）</h3>
+                    <div class="form-group">
+                        <label>新增灵感</label>
+                        <textarea id="pipe_insp_text" placeholder="一句话素材：具体场景/冲突/反常识点（越具体越好）"></textarea>
+                        <div class="hint">写入 data/gzh/inspirations.jsonl（append-only）。</div>
+                    </div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <button class="btn btn-primary btn-sm" onclick="pipelineAddInspiration()">入库</button>
+                        <button class="btn btn-secondary btn-sm" onclick="pipelineLoad('inspirations')">刷新列表</button>
+                    </div>
+                    <div id="pipe_inspirations" style="margin-top:12px;"></div>
+                </div>
+
+                <div class="card">
+                    <h3>02｜结构化选题池（Topics：7常规+5热点）</h3>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+                        <button class="btn btn-secondary btn-sm" onclick="pipelineLoad('topics')">刷新</button>
+                    </div>
+                    <div id="pipe_topics"></div>
+                </div>
+
+                <div class="card">
+                    <h3>03｜草稿库（Drafts）</h3>
+                    <div class="hint" style="margin:-6px 0 10px 0;">来自 data/gzh/drafts.jsonl（管线草稿）与 output/（生成结果）。</div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+                        <button class="btn btn-secondary btn-sm" onclick="pipelineLoad('drafts')">刷新管线草稿库</button>
+                    </div>
+                    <div id="pipe_drafts"></div>
+                </div>
+
+                <div class="card">
+                    <h3>04｜已发布归档（Published）</h3>
+                    <div class="form-group">
+                        <label>手动归档（最小可用）</label>
+                        <input id="pipe_pub_account" placeholder="account_id，例如 mp_chaguan" />
+                        <div class="hint">账号 id 可在 Accounts 页查看。</div>
+                    </div>
+                    <div class="form-group">
+                        <label>标题</label>
+                        <input id="pipe_pub_title" placeholder="已发布文章标题" />
+                    </div>
+                    <div class="form-group">
+                        <label>URL（可选）</label>
+                        <input id="pipe_pub_url" placeholder="https://mp.weixin.qq.com/s/..." />
+                    </div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <button class="btn btn-primary btn-sm" onclick="pipelineArchivePublished()">归档</button>
+                        <button class="btn btn-secondary btn-sm" onclick="pipelineLoad('published')">刷新列表</button>
+                    </div>
+                    <div id="pipe_published" style="margin-top:12px;"></div>
+                </div>
+            </div>
+
+            <div class="col-4">
+                <div class="card">
+                    <h3>03｜SOP/质量/去重配置</h3>
+                    <div class="form-group">
+                        <label>相似度阈值（0~1）</label>
+                        <input id="pipe_dedup_th" placeholder="0.82" />
+                        <div class="hint">仅用于标记/预警（当前最小路径默认 warn）。</div>
+                    </div>
+                    <div class="form-group">
+                        <label>低分自动重写</label>
+                        <select id="pipe_autorewrite">
+                            <option value="false" selected>关闭（默认）</option>
+                            <option value="true">开启</option>
+                        </select>
+                        <div class="hint">开启会增加成本与不确定性，建议先关闭。</div>
+                    </div>
+                    <div class="form-group">
+                        <label>重写阈值（0~1）</label>
+                        <input id="pipe_rewrite_th" placeholder="0.60" />
+                    </div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <button class="btn btn-primary btn-sm" onclick="pipelineSaveSettings()">保存</button>
+                        <button class="btn btn-secondary btn-sm" onclick="pipelineLoadSettings()">刷新</button>
+                    </div>
+                    <details style="margin-top:12px;">
+                        <summary style="cursor:pointer; color:#f59e0b; font-weight:600;">查看当前 SOP（只读）</summary>
+                        <pre id="pipe_sop" style="white-space:pre-wrap; margin-top:10px; font-size:12px; color:#cbd5e1;"></pre>
+                    </details>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- ==================== Trend ==================== -->
     <div id="panel-hot" class="panel">
         <div style="display:flex; gap:10px; margin-bottom:16px; align-items:center; flex-wrap:wrap;">
@@ -522,6 +624,7 @@ function switchTab(name) {
     if (name === 'autotopic') { loadAutotopic(); refreshAutotopicDebugAccounts(); }
     if (name === 'topicbanks') { loadAccountsForTopicBanks(); }
     if (name === 'stats') { loadAccountsForStats(); loadStats(); }
+    if (name === 'pipeline') { pipelineLoadSettings(); pipelineRefreshAll(); }
 }
 
 function showToast(msg) {
@@ -1870,6 +1973,137 @@ async function loadStats() {
     } catch(e) {
         summary.innerHTML = `<div style="color:#f87171;">${e.message}</div>`;
     }
+}
+
+// ==================== GZH Pipeline (4-stage) ====================
+async function pipelineLoadSettings() {
+  try {
+    const res = await fetch(API + '/gzh/settings');
+    const data = await res.json();
+    const gzh = data.gzh || {};
+    const dedup = gzh.dedup || {};
+    const quality = gzh.quality || {};
+    const auto = quality.auto_rewrite || {};
+
+    const th = document.getElementById('pipe_dedup_th');
+    const ar = document.getElementById('pipe_autorewrite');
+    const arth = document.getElementById('pipe_rewrite_th');
+    if (th) th.value = (dedup.similarity_threshold ?? 0.82);
+    if (ar) ar.value = (auto.enabled ? 'true' : 'false');
+    if (arth) arth.value = (auto.score_threshold ?? 0.60);
+
+    // SOP
+    const sopRes = await fetch(API + '/gzh/sop');
+    const sop = await sopRes.json();
+    const box = document.getElementById('pipe_sop');
+    if (box) box.textContent = (sop && sop.success) ? sop.markdown : ('加载 SOP 失败：' + (sop.error || 'unknown'));
+  } catch(e) {
+    showToast('加载管线配置失败：' + (e.message || e));
+  }
+}
+
+async function pipelineSaveSettings() {
+  const th = parseFloat(document.getElementById('pipe_dedup_th')?.value || '0.82');
+  const autoEnabled = (document.getElementById('pipe_autorewrite')?.value || 'false') === 'true';
+  const rewriteTh = parseFloat(document.getElementById('pipe_rewrite_th')?.value || '0.60');
+
+  const payload = {
+    gzh: {
+      dedup: { similarity_threshold: th },
+      quality: { auto_rewrite: { enabled: autoEnabled, score_threshold: rewriteTh } }
+    }
+  };
+  try {
+    const res = await fetch(API + '/gzh/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+    const data = await res.json();
+    if (!data.success) { showToast('保存失败：' + (data.error||'unknown')); return; }
+    showToast('✅ 已保存管线配置');
+  } catch(e) {
+    showToast('保存失败：' + (e.message || e));
+  }
+}
+
+async function pipelineLoad(kind) {
+  const idMap = {inspirations:'pipe_inspirations', topics:'pipe_topics', drafts:'pipe_drafts', published:'pipe_published'};
+  const box = document.getElementById(idMap[kind]);
+  if (!box) return;
+  box.innerHTML = '<div style="color:#94a3b8; padding:10px;">加载中...</div>';
+  try {
+    const res = await fetch(API + `/gzh/library/${kind}?limit=200`);
+    const data = await res.json();
+    if (!data.success) { box.innerHTML = `<div style="color:#f87171; padding:10px;">${data.error||'加载失败'}</div>`; return; }
+    const items = (data.items || []).slice().reverse();
+    if (!items.length) { box.innerHTML = '<div style="color:#94a3b8; padding:10px;">暂无数据</div>'; return; }
+
+    box.innerHTML = items.map(it => {
+      const title = it.title || it.topic_title || it.text || '(no title)';
+      const sub = it.created_at || it.date || '';
+      const extra = it.dedup && it.dedup.hit ? `<span style="color:#f59e0b; font-size:12px;">⚠ 相似度 ${Math.round((it.dedup.max_similarity||0)*100)}%</span>` : '';
+      return `<div class="draft-item">
+        <div style="flex:1;">
+          <div style="font-weight:600;">${escapeHtml(title)}</div>
+          <div style="color:#64748b; font-size:12px; margin-top:4px;">${escapeHtml(sub)} ${extra}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    box.innerHTML = `<div style="color:#f87171; padding:10px;">${e.message||e}</div>`;
+  }
+}
+
+function pipelineRefreshAll(){
+  pipelineLoad('inspirations');
+  pipelineLoad('topics');
+  pipelineLoad('drafts');
+  pipelineLoad('published');
+}
+
+async function pipelineAddInspiration(){
+  const text = (document.getElementById('pipe_insp_text')?.value || '').trim();
+  if (!text) { showToast('请输入灵感内容'); return; }
+  try {
+    const res = await fetch(API + '/gzh/inspirations', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text})});
+    const data = await res.json();
+    if (!data.success) { showToast('入库失败：' + (data.error||'unknown')); return; }
+    document.getElementById('pipe_insp_text').value = '';
+    showToast('✅ 已入库');
+    pipelineLoad('inspirations');
+  } catch(e) {
+    showToast('入库失败：' + (e.message||e));
+  }
+}
+
+async function pipelineArchivePublished(){
+  const account_id = (document.getElementById('pipe_pub_account')?.value || '').trim();
+  const title = (document.getElementById('pipe_pub_title')?.value || '').trim();
+  const url = (document.getElementById('pipe_pub_url')?.value || '').trim();
+  if (!account_id || !title) { showToast('account_id 和 title 必填'); return; }
+  try {
+    const res = await fetch(API + '/gzh/published', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({account_id, title, wechat:{url}})});
+    const data = await res.json();
+    if (!data.success) { showToast('归档失败：' + (data.error||'unknown')); return; }
+    showToast('✅ 已归档');
+    pipelineLoad('published');
+  } catch(e) {
+    showToast('归档失败：' + (e.message||e));
+  }
+}
+
+async function pipelineIncubateTopics(){
+  // Minimal path: reuse existing autotopic run_once and then user can decide generation.
+  // This will push Feishu message as existing behavior; web side just triggers and then topics can be archived via CLI for now.
+  try {
+    const res = await fetch(API + '/autotopic/run_once', {method:'POST'});
+    const data = await res.json();
+    if (!data.success) { showToast('生成失败：' + (data.error||'unknown')); return; }
+    showToast('✅ 已触发自动选题（详情见飞书消息）');
+  } catch(e) {
+    showToast('触发失败：' + (e.message||e));
+  }
+}
+
+function escapeHtml(s){
+  return String(s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
 }
 
 // ==================== Init ====================

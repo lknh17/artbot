@@ -69,3 +69,33 @@
 - `python -m scripts.gzh_four_stage topic_incubate ...`
 - `python -m scripts.gzh_four_stage write_one ...`
 - `python -m scripts.gzh_four_stage archive_published ...`
+
+## 2026-03-01｜chengong.net/art Web 对齐四阶段管线（最小改动路径）
+
+### 盘点现有 Web（/art）页面与接口
+- Web：`web/app.py`（Flask）+ `web/static/index.html`（单页 UI，多 Tab）
+- 既有关键 API：
+  - 配置：`/api/config`、`/api/accounts`、`/api/writing_styles`、`/api/topic_banks`、`/api/autotopic/*`
+  - 生成：`/api/generate`、`/api/status`
+  - 产物：`/api/drafts`（扫描 output/）、`/api/preview/<name>`、`/api/drafts/<name>/debug`、`/api/drafts/<name>/push_mp`
+  - 热点：`/api/hot`
+  - 统计：`/api/stats/wechat`
+
+### 信息架构（对齐 01/02/03/04）
+- 新增 Tab：**🧱 GZH 管线**（panel-pipeline）
+  - 01 素材资产化：Ideas/Inspiration（data/gzh/inspirations.jsonl）
+  - 02 结构化选题池：Topics（data/gzh/topics.jsonl，7常规+5热点）
+  - 03 SOP/质量/去重：读取 SOP（docs/SOP_GZH.md）+ 配置阈值（config.json -> gzh.*）+ 草稿库（data/gzh/drafts.jsonl）
+  - 04 发布归档：Published（data/gzh/published.jsonl，最小可用先手动归档）
+
+### 最小改动路径（先可看/可管）
+- API：新增 `GET/POST /api/gzh/settings`、`GET /api/gzh/sop`、`GET /api/gzh/library/<kind>`、`POST /api/gzh/inspirations`、`POST /api/gzh/published`。
+- UI：index.html 增加 GZH 管线 tab，支持：
+  - 查看 inspirations/topics/drafts/published（只读为主）
+  - 灵感入库（append-only）
+  - 配置去重阈值、低分重写开关与阈值
+  - 手动发布归档
+
+### 配置默认值与 schema
+- `scripts/config.py`：新增 `gzh.sop` 默认值（id/path），供 Web 端展示当前 SOP。
+- `schemas/gzh_web_settings.schema.json`：用于描述 Web 可配置的 gzh.* 子树（dedup/quality/benchmarks/sop）。

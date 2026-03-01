@@ -25,10 +25,14 @@ _defaults = {
     # GZH 4-stage pipeline controls
     "gzh": {
         "platform": "wechat_mp",
+        "sop": {
+            "id": "gzh_v1",
+            "path": os.path.join(os.path.dirname(__file__), "..", "docs", "SOP_GZH.md")
+        },
         "dedup": {
             "enabled": true,
             "similarity_threshold": 0.82,
-            "action": "warn"  
+            "action": "warn"
         },
         "quality": {
             "enable_llm_self_check": false,
