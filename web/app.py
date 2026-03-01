@@ -1078,6 +1078,32 @@ def gzh_add_published_api():
     rec = add_published(account_id=account_id, title=title, wechat=wechat, source=payload.get("source") if isinstance(payload.get("source"), dict) else {"from": "web"})
     return jsonify({"success": True, "item": rec})
 
+@app.route("/api/gzh/topic_incubate", methods=["POST"])
+def gzh_topic_incubate_api():
+    """Generate today's topic candidates and append to data/gzh/topics.jsonl.
+
+    Web button for “再生产/生成选题（落库）”. Safe to click repeatedly:
+    - exact duplicates are skipped
+    - similarity info is recorded in dedup metadata
+    """
+    ensure_dirs()
+    payload = request.json or {}
+    account_id = (payload.get("account_id") or "").strip()
+    try:
+        from scripts.gzh_four_stage import cmd_topic_incubate
+        import argparse
+        import io, contextlib, json as _json
+        ns = argparse.Namespace(account_id=account_id)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            cmd_topic_incubate(ns)
+        out = buf.getvalue().strip()
+        data = _json.loads(out) if out else {"ok": True}
+        return jsonify({"success": True, "result": data})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 
 @app.route("/api/autotopic/run_once", methods=["POST"])
 def autotopic_run_once():

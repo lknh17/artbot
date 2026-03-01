@@ -358,7 +358,7 @@ header p { color: #94a3b8; margin-top: 8px; font-size: 14px; }
             <p style="color:#94a3b8; font-size:13px; margin-bottom:10px;">与 data/ 四类库对齐：素材资产化(01) → 结构化选题池(02) → SOP约束/质量评估/去重(03) → 发布归档(04)。</p>
             <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
                 <button class="btn btn-secondary btn-sm" onclick="pipelineRefreshAll()">刷新</button>
-                <button class="btn btn-primary btn-sm" onclick="pipelineIncubateTopics()">生成今日选题（落库）</button>
+                <button class="btn btn-primary btn-sm" onclick="pipelineIncubateTopics()">再生产选题（落库）</button>
             </div>
             <div class="hint" style="margin-top:8px;">提示：本页默认只做“查看/轻量管理”。重成本抓取/检索/LLM质检默认关闭。</div>
         </div>
@@ -2090,13 +2090,14 @@ async function pipelineArchivePublished(){
 }
 
 async function pipelineIncubateTopics(){
-  // Minimal path: reuse existing autotopic run_once and then user can decide generation.
-  // This will push Feishu message as existing behavior; web side just triggers and then topics can be archived via CLI for now.
+  // Web-first: generate topic candidates and append into data/gzh/topics.jsonl
   try {
-    const res = await fetch(API + '/autotopic/run_once', {method:'POST'});
+    const res = await fetch(API + '/gzh/topic_incubate', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({})});
     const data = await res.json();
     if (!data.success) { showToast('生成失败：' + (data.error||'unknown')); return; }
-    showToast('✅ 已触发自动选题（详情见飞书消息）');
+    const cnt = (data.result && data.result.count) ? data.result.count : 0;
+    showToast('✅ 已再生产选题并落库：' + cnt + ' 条');
+    pipelineLoad('topics');
   } catch(e) {
     showToast('触发失败：' + (e.message||e));
   }

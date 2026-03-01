@@ -50,9 +50,21 @@ def cmd_topic_incubate(args: argparse.Namespace) -> int:
     res = run_autotopic()
     accounts = res.get("accounts") or {}
 
-    recent_topics = load_recent("topics", limit=800)
-    recent_drafts = load_recent("drafts", limit=400)
-    recent_pubs = load_recent("published", limit=800)
+    recent_topics = load_recent("topics", limit=2000)
+    recent_drafts = load_recent("drafts", limit=800)
+    recent_pubs = load_recent("published", limit=2000)
+
+    # Exact-title dedup (so user can click "再生产" multiple times without filling the pool with identical titles)
+    existing_titles: dict[str, set[str]] = {}
+    for t in recent_topics:
+        try:
+            aid = (t.get("account_id") or "").strip()
+            tt = (t.get("title") or "").strip()
+            if not aid or not tt:
+                continue
+            existing_titles.setdefault(aid, set()).add(tt)
+        except Exception:
+            continue
 
     cfg_dedup = {}
     try:
@@ -85,6 +97,10 @@ def cmd_topic_incubate(args: argparse.Namespace) -> int:
             if c.get("source") and c.get("source") != "topic_bank" and category != "hot":
                 # safety: if source suggests hot but category missing
                 pass
+
+            # Skip exact duplicates already in pool
+            if suggested in existing_titles.get(account_id, set()):
+                continue
 
             # de-dup similarity check against previous assets
             best_score, best_item = nearest(suggested, recent_pubs, text_key="title")
