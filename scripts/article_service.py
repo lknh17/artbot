@@ -496,6 +496,13 @@ def execute_generation_task(task: dict) -> dict:
         except Exception as e:
             search_meta = {"ok": False, "error": str(e), "hot_url": task.get("hot_url"), "hot_title": task.get("hot_title", "")}
 
+    # Reset per-article text LLM metrics so pipeline_debug can report clean counts.
+    try:
+        from scripts import llm as _llm
+        _llm.reset_metrics()
+    except Exception:
+        pass
+
     raw = chat(article_prompt, model="moonshot-v1-32k", temperature=0.7, max_tokens=3000)
 
     # Prefer fenced json block if exists
@@ -543,6 +550,13 @@ def execute_generation_task(task: dict) -> dict:
     try:
         cred = (acc.get("credentials") or {})
         debug_extras = {}
+        # Attach text LLM metrics (separate from image calls).
+        try:
+            from scripts import llm as _llm2
+            debug_extras.setdefault("metrics", {}).update(_llm2.get_metrics())
+        except Exception:
+            pass
+
         if search_meta:
             debug_extras["web_search"] = {
                 "enabled": True,

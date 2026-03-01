@@ -492,7 +492,7 @@ def run_autotopic(config: dict = None, accounts: list = None) -> dict:
 
     # New strategy: generate a unified list of candidates (mostly from topic bank,
     # optionally mixed with a few hot-driven titles).
-    total_title_count = int(config.get("title_count", 10) or 10)
+    total_title_count = int((config.get('manual_title_count', 5) if mode == 'manual' else config.get('title_count', 10)) or 10)
     hot_mix_count = int(config.get("hot_mix_count", 3) or 3)
     hot_title_count = max(0, min(hot_mix_count, total_title_count))
 
@@ -621,66 +621,133 @@ def run_autotopic(config: dict = None, accounts: list = None) -> dict:
         except Exception:
             return []
 
+    def _bank_titles_no_llm(acc: dict, count: int) -> list:
+        """Generate candidate titles from topic bank atoms WITHOUT calling LLM."""
+        if count <= 0:
+            return []
+        try:
+            from scripts.topic_banks import load_topic_bank, flatten_atoms
+            import random
+
+            bank = load_topic_bank(acc.get('id', ''))
+            atoms = flatten_atoms(bank)
+            problems = atoms.get('problems') or []
+            scenes = atoms.get('scenes') or []
+            conflicts = atoms.get('conflicts') or []
+            actions = atoms.get('actions') or []
+
+            # Gentle fallbacks if atoms are sparse
+            if not scenes:
+                scenes = ['回家的路上', '周日晚上', '饭桌上', '电梯里', '凌晨手机亮起那一刻']
+            if not problems:
+                problems = ['焦虑', '害怕', '内耗', '不安', '委屈']
+            if not conflicts:
+                conflicts = ['不敢开口', '怕被否定', '怕关系更僵', '不知道怎么说', '怕被误解']
+            if not actions:
+                actions = ['好好说', '把话说清', '先伸手', '先停一下', '先照顾自己']
+
+            templates = [
+                '{scene}那一刻你{conflict}：你怕的不是{problem}，是{action}',
+                '{scene}之后你突然沉默：你以为在{action}，其实在躲{problem}',
+                '{scene}最难的不是{problem}，是{conflict}怎么开口',
+                '{scene}里那句“算了”：你不是认输，是{conflict}',
+                '{scene}你想{action}，却被{conflict}卡住：先别怪自己',
+            ]
+
+            out = []
+            for _ in range(count * 4):
+                t = random.choice(templates).format(
+                    scene=random.choice(scenes),
+                    problem=random.choice(problems),
+                    conflict=random.choice(conflicts),
+                    action=random.choice(actions),
+                ).strip()
+                if len(t) > 26:
+                    t = t[:26]
+                if t and t not in out:
+                    out.append(t)
+                if len(out) >= count:
+                    break
+            return out[:count]
+        except Exception:
+            return []
+
+
+    def _llm_daily_titles_once(acc: dict, hot_for_prompt: list, count: int) -> list:
+        """Generate today's candidate titles with ONE LLM call per account."""
+        if count <= 0:
+            return []
+        try:
+            from scripts.topic_banks import load_topic_bank, flatten_atoms
+            from scripts.llm import chat
+            import re
+
+            ws = (acc.get('profile') or {}).get('writing_style') or {}
+            domain = ws.get('domain', '')
+            persona = ws.get('persona', '')
+            audience = ws.get('audience', '')
+            tone = ws.get('tone', '')
+            platform = '公众号' if acc.get('platform') == 'wechat_mp' else '小红书'
+
+            bank = load_topic_bank(acc.get('id', ''))
+            atoms = flatten_atoms(bank)
+
+            hot_lines = []
+            for i, it in enumerate((hot_for_prompt or [])[:6], 1):
+                title = (it.get('title') or '').strip()
+                src = (it.get('platform_name') or it.get('platform') or it.get('source') or '').strip()
+                if title:
+                    hot_lines.append('{} . {}（{}）'.format(i, title, src))
+            hot_part = '\n'.join(hot_lines) if hot_lines else '（无）'
+
+            prompt = f"""你是一位{platform}内容创作者，请为账号生成 {count} 个“可直接发布”的中文标题。\n\n账号定位：\n- 领域：{domain}\n- 人设：{persona}\n- 读者：{audience}\n- 语气：{tone}\n\n今日热点（仅作灵感，不强制写进标题）：\n{hot_part}\n\n账号选题素材（用于生成具体、不空泛的标题）：\n- 痛点：{(atoms.get('problems') or [])[:10]}\n- 场景：{(atoms.get('scenes') or [])[:10]}\n- 冲突：{(atoms.get('conflicts') or [])[:10]}\n- 动作：{(atoms.get('actions') or [])[:10]}\n\n要求：\n1) 10-22字为主，口语化，有画面/情绪冲突\n2) 允许提问/反差：你以为/其实/到底/别再\n3) 禁止空泛句（快节奏时代/不难发现/越来越…）\n4) 每行一个标题，不要编号，不要解释，不要任何前后缀。\n\n请输出 {count} 个标题："""
+
+            out = chat(prompt, temperature=0.85, max_tokens=500)
+            lines = []
+            for l in out.splitlines():
+                l = (l or '').strip()
+                if not l:
+                    continue
+                l = l.strip(' \t-•')
+                l = re.sub(r'^\\(?\\s*\\d+\\s*[\\.、)]\\s*', '', l).strip()
+                l = re.sub(r'^\\[\\s*\\d+\\s*\\]\\s*', '', l).strip()
+                if l:
+                    lines.append(l)
+            seen = set()
+            uniq = []
+            for t in lines:
+                if t not in seen:
+                    seen.add(t)
+                    uniq.append(t)
+            return uniq[:count]
+        except Exception:
+            return []
+
+
     for idx, acc in enumerate(enabled_accounts):
         label = labels[idx] if idx < len(labels) else str(idx)
 
-        # 🔥 Hot candidates (optional)
-        hot_candidates = []
-        if hot_items and hot_title_count > 0:
-            matched = match_topics_for_account(hot_items, acc, count=max(1, hot_title_count) * 5)
-            # de-dup with recent topics
-            acc_hist = topic_history.get(acc.get("id", ""), {}) if isinstance(topic_history, dict) else {}
-            recent_hot = set((acc_hist.get("recent_hot") or [])[:20]) if isinstance(acc_hist, dict) else set()
-            filtered = []
-            for it in matched:
-                if (it.get("title") or "").strip() in recent_hot:
-                    continue
-                filtered.append(it)
-                if len(filtered) >= max(1, hot_title_count):
-                    break
-            matched = filtered or matched[:max(1, hot_title_count)]
+        # One-call strategy: generate today's titles with a single LLM call per account.
+        # This replaces per-hot rewrite (N calls) + bank brainstorming (1 call).
+        hot_for_prompt = hot_items[:max(0, hot_title_count)] if hot_items else []
 
-            for t in matched:
-                base = (t.get("title") or "").strip()
-                source_name = t.get("platform_name", t.get("platform", ""))
-                llm_titles = _llm_rewrite_titles(acc, base, source_platform=source_name)
-                suggested = llm_titles[0] if llm_titles else None
-                if not suggested:
-                    # fallback to heuristic generator
-                    suggested = (generate_title_candidates(acc, [t]) or [{}])[0].get("suggested_title") or base
-                hot_candidates.append({
-                    "category": "hot",
-                    "original_title": base,
-                    "suggested_title": suggested,
-                    "source": source_name,
-                    "url": t.get("url", ""),
-                    "rank": t.get("rank", None),
-                    "platform": t.get("platform", ""),
-                    "score": t.get("score", 0),
-                    "search_suggested": _should_web_search_hot(t, acc),
-                })
+        titles = _llm_daily_titles_once(acc, hot_for_prompt, total_title_count)
+        if not titles:
+            titles = _bank_titles_no_llm(acc, total_title_count)
 
-        # Unified candidates: start with hot (limited), fill remaining with bank titles
-        hot_candidates = hot_candidates[:hot_title_count]
-
-        need_bank = max(0, total_title_count - len(hot_candidates))
-        bank_candidates = []
-        if need_bank > 0:
-            bank_titles = _llm_bank_titles(acc, need_bank)
-            for bt in bank_titles:
-                bank_candidates.append({
-                    "category": "bank",
-                    "original_title": "",
-                    "suggested_title": bt,
-                    "source": "topic_bank",
-                    "url": "",
-                    "rank": None,
-                    "platform": "",
-                    "score": 0,
-                    "search_suggested": False,
-                })
-
-        candidates = (bank_candidates + hot_candidates)[:total_title_count]
+        candidates = []
+        for t in titles:
+            candidates.append({
+                'category': 'bank',
+                'original_title': '',
+                'suggested_title': t,
+                'source': 'topic_bank',
+                'url': '',
+                'rank': None,
+                'platform': '',
+                'score': 0,
+                'search_suggested': False,
+            })
 
         result_accounts[label] = {
             "account_id": acc.get("id", ""),

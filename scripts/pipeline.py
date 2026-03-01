@@ -215,6 +215,16 @@ def execute_pipeline(
             except Exception:
                 pass
     
+    # Metrics: image calls are provider-side (Hunyuan 3.0). Keep them separate from text LLM calls.
+    try:
+        debug.setdefault("metrics", {})
+        debug["metrics"].update({
+            "llm_image_calls": 1 + len(inline_prompts),
+            "llm_image_provider": "hunyuan-3.0",
+        })
+    except Exception:
+        pass
+
     # Update debug file at the end
     try:
         debug["done_at"] = datetime.now().isoformat()

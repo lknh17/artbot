@@ -25,6 +25,25 @@ import urllib.request
 from typing import Any
 
 
+# Simple in-process metrics so we can distinguish text LLM calls from image calls.
+# Image calls are tracked in pipeline_debug.json (Hunyuan 3.0).
+_LLM_CALLS = 0
+_LAST_BACKEND = None
+
+
+def reset_metrics() -> None:
+    global _LLM_CALLS, _LAST_BACKEND
+    _LLM_CALLS = 0
+    _LAST_BACKEND = None
+
+
+def get_metrics() -> dict:
+    return {
+        "llm_text_calls": _LLM_CALLS,
+        "llm_backend": _LAST_BACKEND,
+    }
+
+
 def _backend() -> str:
     # Prefer config.json (no env required). Env kept only as an emergency override.
     try:
@@ -173,7 +192,11 @@ def chat(prompt: str, model: str = "moonshot-v1-8k", temperature: float = 0.8,
     - moonshot backend: honors model/temperature/max_tokens.
     - openclaw backend: uses configured agent; may ignore model/temperature/max_tokens.
     """
+    global _LLM_CALLS, _LAST_BACKEND
     be = _backend()
+    _LAST_BACKEND = be
+    _LLM_CALLS += 1
+
     if be == "openclaw":
         return _openclaw_chat(prompt)
 
