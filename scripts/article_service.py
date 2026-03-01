@@ -131,6 +131,8 @@ def build_article_prompt(account: dict, keyword: str, extra_prompt: str = "",
     tone_flag_healing = ("疗愈" in (tone or "")) or ("松一口气" in (tone or ""))
     enable_healing = article_mode in ("healing", "healing_emotion", "emotion_healing", "soothing") or tone_flag_healing
 
+
+    enable_zen = article_mode in ("zen", "zen_reflection", "reflection", "deep", "single_topic")
     emotion_rules = ""
     if enable_healing:
         emotion_rules = f"""
@@ -170,6 +172,28 @@ def build_article_prompt(account: dict, keyword: str, extra_prompt: str = "",
   - 一个问题引导评论
 """
 
+
+    elif enable_zen:
+        emotion_rules = f"""
+
+## 写法（禅意深挖型｜必须执行）
+- 目标：只讲透一个主题，让读者读完心里安静下来。
+- 单主题：全文不要发散到‘团队管理/向上向下/背锅话术’等通用职场模板；除非主题明确是职场管理。
+- 开头 100-140 字：用一个真实生活镜头开场（时间/光线/动作/一句话），不要编夸张故事。
+- 深挖：给出 1 个核心洞见，并用 2-3 层递进讲透（情绪 → 机制 → 选择）。
+- 结构建议 5 个模块：
+  1) 场景（被看见）
+  2) 命名情绪（你在怕什么/舍不得什么）
+  3) 深一层（为什么会这样：关系/身份/控制感/期待）
+  4) 小练习/小动作（3分钟内完成，具体到步骤）
+  5) 收束（安抚 + 提问引导评论）
+- 排版必须好读：
+  - 每个 paragraph 尽量 ≤ 60 个汉字，超过就拆成两段
+  - 多留白：重要句子单独成段
+  - 允许 1 处清单（1/2/3），但必须紧贴主题
+- 至少 2 句 *斜体真话*（像真话，不像格言）
+- 结尾必须包含：一段安抚 + 3分钟小练习 + 一个问题引导评论
+"""
     prompt = f"""你是一位{platform}内容创作者。
 
 ## 账号定位
@@ -530,6 +554,63 @@ def execute_generation_task(task: dict) -> dict:
     digest = article_data.get("digest", "")
     subtitle = article_data.get("subtitle", "")
     sections = article_data.get("sections", [])
+
+
+    def _split_long_paragraph(p: str, max_len: int = 60) -> list[str]:
+        p = (p or '').strip()
+        if not p:
+            return []
+        if len(p) <= max_len:
+            return [p]
+        # split by Chinese sentence punctuation first
+        parts = re.split(r'([。！？!?])', p)
+        buf = ''
+        out = []
+        for i in range(0, len(parts), 2):
+            seg = parts[i]
+            punct = parts[i+1] if i+1 < len(parts) else ''
+            piece = (seg + punct).strip()
+            if not piece:
+                continue
+            if len(buf) + len(piece) <= max_len:
+                buf = (buf + piece).strip()
+            else:
+                if buf:
+                    out.append(buf)
+                buf = piece
+        if buf:
+            out.append(buf)
+        # final clamp: hard cut
+        final = []
+        for x in out:
+            x = x.strip()
+            while len(x) > max_len:
+                final.append(x[:max_len])
+                x = x[max_len:]
+            if x:
+                final.append(x)
+        return [x for x in final if x]
+
+
+
+
+    # split long paragraphs for readability (better公众号排版)
+    try:
+        new_sections = []
+        for sec in sections if isinstance(sections, list) else []:
+            title2 = sec.get('title') if isinstance(sec, dict) else ''
+            paras = sec.get('paragraphs') if isinstance(sec, dict) else []
+            out_paras = []
+            for pp in (paras or []):
+                if isinstance(pp, str):
+                    out_paras.extend(_split_long_paragraph(pp, max_len=60))
+            # ensure some breathing room
+            out_paras = [x.strip() for x in out_paras if x and x.strip()]
+            new_sections.append({"title": title2, "paragraphs": out_paras})
+        sections = new_sections
+        article_data["sections"] = sections
+    except Exception:
+        pass
 
     # 2. Save article
     result = save_article(account_id, article_data, keyword, task.get("source_platform", ""))

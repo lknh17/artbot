@@ -492,8 +492,8 @@ def run_autotopic(config: dict = None, accounts: list = None) -> dict:
 
     # New strategy: generate a unified list of candidates (mostly from topic bank,
     # optionally mixed with a few hot-driven titles).
-    total_title_count = int((config.get('manual_title_count', 5) if mode == 'manual' else config.get('title_count', 10)) or 10)
-    hot_mix_count = int(config.get("hot_mix_count", 3) or 3)
+    total_title_count = int((config.get('manual_title_count', 12) if mode == 'manual' else config.get('title_count', 10)) or 10)
+    hot_mix_count = int(config.get("hot_mix_count", 5) or 5)
     hot_title_count = max(0, min(hot_mix_count, total_title_count))
 
     # In auto mode, how many articles to auto-generate/push per account
@@ -673,9 +673,13 @@ def run_autotopic(config: dict = None, accounts: list = None) -> dict:
             return []
 
 
-    def _llm_daily_titles_once(acc: dict, hot_for_prompt: list, count: int) -> list:
-        """Generate today's candidate titles with ONE LLM call per account."""
-        if count <= 0:
+    def _llm_daily_candidates_once(acc: dict, hot_for_prompt: list, hot_count: int, regular_count: int) -> list:
+        """Generate today's candidates with ONE LLM call per account.
+
+        Returns a list of candidate dicts with category=hot|bank.
+        """
+        total = max(0, int(hot_count or 0)) + max(0, int(regular_count or 0))
+        if total <= 0:
             return []
         try:
             from scripts.topic_banks import load_topic_bank, flatten_atoms
@@ -700,26 +704,73 @@ def run_autotopic(config: dict = None, accounts: list = None) -> dict:
                     hot_lines.append('{} . {}（{}）'.format(i, title, src))
             hot_part = '\n'.join(hot_lines) if hot_lines else '（无）'
 
-            prompt = f"""你是一位{platform}内容创作者，请为账号生成 {count} 个“可直接发布”的中文标题。\n\n账号定位：\n- 领域：{domain}\n- 人设：{persona}\n- 读者：{audience}\n- 语气：{tone}\n\n今日热点（仅作灵感，不强制写进标题）：\n{hot_part}\n\n账号选题素材（用于生成具体、不空泛的标题）：\n- 痛点：{(atoms.get('problems') or [])[:10]}\n- 场景：{(atoms.get('scenes') or [])[:10]}\n- 冲突：{(atoms.get('conflicts') or [])[:10]}\n- 动作：{(atoms.get('actions') or [])[:10]}\n\n要求：\n1) 10-22字为主，口语化，有画面/情绪冲突\n2) 允许提问/反差：你以为/其实/到底/别再\n3) 禁止空泛句（快节奏时代/不难发现/越来越…）\n4) 每行一个标题，不要编号，不要解释，不要任何前后缀。\n\n请输出 {count} 个标题："""
+            prompt = f"""你是一位{platform}内容创作者，请为账号生成今日候选标题：热点结合 {hot_count} 个 + 常规 {regular_count} 个。\n\n账号定位：\n- 领域：{domain}\n- 人设：{persona}\n- 读者：{audience}\n- 语气：{tone}\n\n今日热点（仅作灵感，不强制写进标题）：\n{hot_part}\n\n账号选题素材（用于生成具体、不空泛的标题）：\n- 痛点：{(atoms.get('problems') or [])[:10]}\n- 场景：{(atoms.get('scenes') or [])[:10]}\n- 冲突：{(atoms.get('conflicts') or [])[:10]}\n- 动作：{(atoms.get('actions') or [])[:10]}\n\n要求：\n1) 10-22字为主，口语化，有画面/情绪冲突\n2) 允许提问/反差：你以为/其实/到底/别再\n3) 禁止空泛句（快节奏时代/不难发现/越来越…）\n4) 每行一个标题，不要编号，不要解释，不要任何前后缀。\n\n必须严格输出可解析的JSON对象（不要Markdown/不要解释/不要多余文字），只输出JSON本体。
+JSON必须包含两个字段：
+- hot: 数组，元素为对象，字段 original_title 与 title
+- regular: 字符串数组
+数量要求：hot=hot_count，regular=regular_count。
+"""
 
-            out = chat(prompt, temperature=0.85, max_tokens=500)
-            lines = []
-            for l in out.splitlines():
-                l = (l or '').strip()
-                if not l:
-                    continue
-                l = l.strip(' \t-•')
-                l = re.sub(r'^\\(?\\s*\\d+\\s*[\\.、)]\\s*', '', l).strip()
-                l = re.sub(r'^\\[\\s*\\d+\\s*\\]\\s*', '', l).strip()
-                if l:
-                    lines.append(l)
-            seen = set()
-            uniq = []
-            for t in lines:
+            out = chat(prompt, temperature=0.75, max_tokens=900)
+            import json as _json
+            try:
+                data = _json.loads(out)
+            except Exception:
+                # fallback: try extract json object
+                m2 = re.search(r"\{[\s\S]*\}", out)
+                data = _json.loads(m2.group(0)) if m2 else {"hot": [], "regular": []}
+
+            hot = data.get('hot') or []
+            regular = data.get('regular') or []
+
+            candidates = []
+            # hot candidates
+            for it in hot[:max(0, int(hot_count or 0))]:
+                ot = (it.get('original_title') or '').strip() if isinstance(it, dict) else ''
+                tt = (it.get('title') or '').strip() if isinstance(it, dict) else ''
+                if tt:
+                    candidates.append({
+                        'category': 'hot',
+                        'original_title': ot,
+                        'suggested_title': tt,
+                        'source': (hot_for_prompt[0].get('platform_name') or hot_for_prompt[0].get('platform') or hot_for_prompt[0].get('source') or '') if hot_for_prompt else '',
+                        'url': '',
+                        'rank': None,
+                        'platform': '',
+                        'score': 0,
+                        'search_suggested': True,
+                    })
+
+            # regular candidates
+            # normalize regular as strings
+            reg_lines = []
+            if isinstance(regular, list):
+                for l in regular:
+                    if isinstance(l, str) and l.strip():
+                        reg_lines.append(l.strip())
+            # de-dup keep order
+            seen=set()
+            reg_uniq=[]
+            for t in reg_lines:
                 if t not in seen:
                     seen.add(t)
-                    uniq.append(t)
-            return uniq[:count]
+                    reg_uniq.append(t)
+
+            for t in reg_uniq[:max(0, int(regular_count or 0))]:
+                candidates.append({
+                    'category': 'bank',
+                    'original_title': '',
+                    'suggested_title': t,
+                    'source': 'topic_bank',
+                    'url': '',
+                    'rank': None,
+                    'platform': '',
+                    'score': 0,
+                    'search_suggested': False,
+                })
+
+            return candidates
+
         except Exception:
             return []
 
@@ -730,14 +781,13 @@ def run_autotopic(config: dict = None, accounts: list = None) -> dict:
         # One-call strategy: generate today's titles with a single LLM call per account.
         # This replaces per-hot rewrite (N calls) + bank brainstorming (1 call).
         hot_for_prompt = hot_items[:max(0, hot_title_count)] if hot_items else []
+        regular_count = max(0, total_title_count - max(0, hot_title_count))
 
-        titles = _llm_daily_titles_once(acc, hot_for_prompt, total_title_count)
-        if not titles:
+        candidates = _llm_daily_candidates_once(acc, hot_for_prompt, hot_title_count, regular_count)
+        if not candidates:
+            # fallback: generate regular titles without LLM
             titles = _bank_titles_no_llm(acc, total_title_count)
-
-        candidates = []
-        for t in titles:
-            candidates.append({
+            candidates = [{
                 'category': 'bank',
                 'original_title': '',
                 'suggested_title': t,
@@ -747,7 +797,7 @@ def run_autotopic(config: dict = None, accounts: list = None) -> dict:
                 'platform': '',
                 'score': 0,
                 'search_suggested': False,
-            })
+            } for t in titles]
 
         result_accounts[label] = {
             "account_id": acc.get("id", ""),

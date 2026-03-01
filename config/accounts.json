@@ -38,9 +38,9 @@
           "domain": "社会人生感悟",
           "mimic_style": "净心茶社禅意风",
           "persona": "在浮躁的人世间，安放一颗清明的心。这里分享人生哲理、社会感悟与职场心得，愿读者能净心静气，笑看人生百态。\n",
-          "tone": "情绪疗愈型（锋利但不刻薄，像朋友一样把话说透）",
-          "article_mode": "healing",
-          "reference": "jingxin-healing"
+          "tone": "禅意克制，文艺留白，但把一个主题讲深",
+          "article_mode": "zen",
+          "reference": "jingxin-zen-deep"
         }
       }
     }
