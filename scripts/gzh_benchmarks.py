@@ -39,6 +39,21 @@ def _strip_html(html: str) -> str:
     html = re.sub(r"\s+", " ", html)
     return html.strip()
 
+ENV_BLOCK_MARKERS = [
+    "环境异常",
+    "完成验证",
+    "当前环境异常",
+    "请完成验证",
+    "安全验证",
+    "访问过于频繁",
+]
+
+
+def _looks_blocked(page_text: str) -> bool:
+    t = (page_text or "")
+    return any(m in t for m in ENV_BLOCK_MARKERS)
+
+
 
 def fetch_url_text(url: str, timeout: int = 20) -> str:
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -54,7 +69,10 @@ def fetch_url_text(url: str, timeout: int = 20) -> str:
             html = raw.decode(enc, errors="ignore")
         except Exception:
             html = raw.decode("utf-8", errors="ignore")
-    return _strip_html(html)
+    page_text = _strip_html(html)
+    if _looks_blocked(page_text):
+        raise RuntimeError("源站要求安全验证/环境校验，无法自动抓取正文。建议：1) 直接粘贴正文文本；2) 或下载PDF上传；3) 或提供可直接访问的公开网页。")
+    return page_text
 
 
 def extract_pdf_text(file_path: str, max_pages: int = 30) -> str:
@@ -213,6 +231,8 @@ def update_category_prompt(category: str, analysis: dict[str, Any]) -> dict[str,
 
 def ingest_text(text: str, source: dict[str, Any]) -> dict[str, Any]:
     ensure_dirs()
+    if len((text or "").strip()) < 200:
+        raise RuntimeError("正文太短或抽取失败（少于200字）。请改用：直接粘贴正文/上传PDF/换可访问链接。")
     analysis = analyze_benchmark(text)
     bm = add_benchmark(source=source, raw_text=text, analysis=analysis)
     p = update_category_prompt(bm.get("category"), analysis)
