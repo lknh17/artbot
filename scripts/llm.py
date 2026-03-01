@@ -197,6 +197,19 @@ def chat(prompt: str, model: str = "moonshot-v1-8k", temperature: float = 0.8,
     _LAST_BACKEND = be
     _LLM_CALLS += 1
 
+    # Structured metrics (best-effort)
+    try:
+        from scripts.metrics import log_event
+        log_event("llm_text_call", {
+            "backend": be,
+            "model": model,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "prompt_chars": len(prompt or ""),
+        })
+    except Exception:
+        pass
+
     if be == "openclaw":
         return _openclaw_chat(prompt)
 

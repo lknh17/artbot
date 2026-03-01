@@ -78,6 +78,18 @@ def generate_image(prompt: str, output_path: str, resolution="1024:1024", style_
 
     print(f"[image_gen] Generating: {full_prompt[:60]}...", file=sys.stderr)
 
+    # Structured metrics: track image calls separately from text LLM calls.
+    try:
+        from scripts.metrics import log_event
+        log_event("llm_image_call", {
+            "provider": "hunyuan-3.0",
+            "resolution": resolution,
+            "prompt_chars": len(full_prompt),
+            "fallback_expected": False,
+        })
+    except Exception:
+        pass
+
     # 设置环境变量供 hunyuan_image 使用
     os.environ.setdefault("HUNYUAN_SECRET_ID", cfg.get("hunyuan_secret_id", ""))
     os.environ.setdefault("HUNYUAN_SECRET_KEY", cfg.get("hunyuan_secret_key", ""))

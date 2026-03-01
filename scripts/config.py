@@ -18,6 +18,32 @@ _defaults = {
     "num_inline_images": 2,
     "md2wechat_run_sh": os.path.join(os.path.dirname(__file__), "..", "skills", "md2wechat", "scripts", "run.sh"),
     "output_dir": os.path.join(os.path.dirname(__file__), "..", "output"),
+
+    # Data assets (default gitignored)
+    "data_dir": os.path.join(os.path.dirname(__file__), "..", "data"),
+
+    # GZH 4-stage pipeline controls
+    "gzh": {
+        "platform": "wechat_mp",
+        "dedup": {
+            "enabled": true,
+            "similarity_threshold": 0.82,
+            "action": "warn"  
+        },
+        "quality": {
+            "enable_llm_self_check": false,
+            "auto_rewrite": {
+                "enabled": false,
+                "score_threshold": 0.60,
+                "max_rewrites": 1
+            }
+        },
+        "benchmarks": {
+            "enabled": false,
+            "config_path": os.path.join(os.path.dirname(__file__), "..", "config", "gzh_benchmarks.json")
+        }
+    },
+
     # Feishu notify target for artbot worker/web (optional)
     # Example: "chat:oc_xxx" (preferred). If empty, worker will fallback to current group.
     "feishu_target": "",
